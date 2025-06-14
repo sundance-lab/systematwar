@@ -12,12 +12,12 @@ const CONFIG = {
 
     // Star Properties
     ORIGINAL_STAR_RADIUS: 20, // Base reference for scaling
-    MIN_STAR_MULTIPLIER: 100,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
-    MAX_STAR_MULTIPLIER: 200,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
+    MIN_STAR_MULTIPLIER: 200,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
+    MAX_STAR_MULTIPLIER: 400,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
 
     // Planet Properties
-    PLANET_RADIUS_MIN_BASE: 30,
-    PLANET_RADIUS_MAX_BASE: 80,
+    PLANET_RADIUS_MIN_BASE: 20,
+    PLANET_RADIUS_MAX_BASE: 60,
     PLANET_RADIUS_SCALE_FACTOR: 10, // Planets are (5-14) * 10 = 50-140px
     MIN_PLANETS: 6, // Minimum number of planets to spawn
     MAX_PLANETS: 12, // Maximum number of planets to spawn
