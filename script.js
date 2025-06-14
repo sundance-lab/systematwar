@@ -49,7 +49,8 @@ const CONFIG = {
     INITIAL_VIEW_PADDING_FACTOR: 1.2, // Padding for initial zoom calculation
 
     // Camera Tracking
-    CAMERA_FOLLOW_LERP_FACTOR: 0.03, // DECREASED: How smoothly the camera follows (lower = slower)
+    CAMERA_FOLLOW_LERP_FACTOR: 0.08, // How smoothly the camera follows position (increased for slightly snappier follow)
+    CAMERA_ZOOM_LERP_FACTOR: 0.05, // NEW: Separate LERP factor for zoom (smaller = slower zoom)
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0, // Target zoom level when following a planet (increased for closer view)
 
     // Planet Counter
@@ -103,7 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
         scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
         dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
         targetPlanet: null, // Stores the planet object to follow
-        activeListItem: null // Stores the currently active list item
+        activeListItem: null, // Stores the currently active list item
+        targetZoom: CONFIG.CAMERA_INITIAL_ZOOM // NEW: What zoom level the camera is trying to achieve
     };
 
     let isDragging = false;
@@ -112,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameActive = false;
 
     // Game State Variables
-    let score = 0; // Player's personal score
+    let score = 0;
     let asteroids = [];
     let chosenStarterPlanet = null;
 
@@ -134,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.y = 0;
         camera.targetPlanet = null;
         camera.activeListItem = null;
+        camera.targetZoom = camera.zoom; // Sync targetZoom with current zoom
         score = 0;
         asteroids = [];
         chosenStarterPlanet = null;
@@ -164,8 +167,9 @@ document.addEventListener('DOMContentLoaded', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false;
         
-        // --- NEW CAMERA FIX: Only set targetPlanet. LERP will handle smooth transition from current view. ---
-        camera.targetPlanet = chosenStarterPlanet; 
+        // Only set target. LERP will handle smooth transition.
+        camera.targetPlanet = chosenStarterPlanet;
+        camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Set the desired target zoom for the follow
 
         // Start asteroid spawning only after a planet is chosen
         if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
@@ -177,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        // When following a planet, zooming should happen around the planet, not unlock
-        // The camera.targetPlanet remains set.
+        // Manual zoom overrides follow's target zoom, but keeps following position
+        // Don't set camera.targetPlanet = null here.
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -194,13 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
+        camera.targetZoom = camera.zoom; // NEW: Set targetZoom to current manual zoom level
 
-        // Adjust camera position to zoom towards the mouse cursor (even if following)
-        // This ensures the point under the cursor stays fixed during zoom.
+        // Adjust camera position to zoom towards the mouse cursor
         const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-        camera.x -= (worldXAfter - worldXBefore); // Camera center needs to shift opposite to world point movement
+        camera.x -= (worldXAfter - worldXBefore);
         camera.y -= (worldYAfter - worldYBefore);
     });
 
@@ -209,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clicks for selection/shooting do not unlock the camera anymore.
         // Only direct list item clicks (handled in populatePlanetList) or an explicit 'unfollow' would.
+        // This means manual panning is disabled if following, as seen below.
 
         if (e.button === 0) { // Left mouse button
             e.preventDefault();
@@ -241,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     if (distance < planet.radius) {
-                        chosenStarterPlanet = planet; // Store the chosen planet
+                        chosenStarterPlanet = planet;
                         starterPlanetPanel.classList.remove('active');
                         chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`;
                         planetChosenPanel.classList.add('active');
@@ -272,7 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 3. If nothing else was clicked AND camera is NOT currently following, initiate drag
-            // This prevents manual panning when the camera is locked onto a planet.
             if (!clickHandled && !camera.targetPlanet) { 
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -315,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const originalStarRadius = CONFIG.ORIGINAL_STAR_RADIUS;
         const minStarRadius = originalStarRadius * CONFIG.MIN_STAR_MULTIPLIER;
-        const maxStarRadius = originalStarRadius * CONFIG.MAX_STAR_MULTIPLIER;
+        const maxStarRadius = originalStarStarRadius * CONFIG.MAX_STAR_MULTIPLIER;
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
 
@@ -418,9 +422,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
 
-                // --- NEW CAMERA FIX: On list click, just set target and let LERP handle smooth transition ---
+                // On list click, set target and let LERP handle smooth transition
                 camera.targetPlanet = planet;
-                // No immediate snap of camera.x, y, zoom here. LERP will handle the move.
+                camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Set target zoom for this new follow
             });
             planetList.appendChild(listItem);
         });
@@ -432,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (planet.listItemRef) {
                 const counterSpan = planet.listItemRef.querySelector('.planet-number');
                 if (counterSpan) {
-                    counterSpan.textContent = `${planet.timeSurvived} `; // Removed 's'
+                    counterSpan.textContent = `${planet.timeSurvived} `;
                 }
             }
         });
@@ -496,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         camera.zoom = requiredZoom;
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
+        camera.targetZoom = camera.zoom; // Sync targetZoom with current initial zoom
     }
 
 
@@ -523,8 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.x = camera.x + (targetX - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
             camera.y = camera.y + (targetY - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
 
-            // Smoothly adjust zoom towards the desired follow zoom level
-            camera.zoom = camera.zoom + (CONFIG.CAMERA_FOLLOW_ZOOM_TARGET - camera.zoom) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+            // Smoothly adjust zoom towards the desired target zoom level
+            camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR; // Use new ZOOM_LERP_FACTOR
             camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM)); // Clamp zoom
         }
 
@@ -621,6 +626,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // If following, just let it continue following; lerp will naturally adjust to new canvas size.
             if (!camera.targetPlanet) {
                 setInitialCameraZoom();
+            } else {
+                // If following, the targetZoom needs to be re-evaluated for the new canvas size
+                // if it were dependent on canvas size, but it's fixed (3.0).
+                // Just let the LERP continue.
             }
             animateSolarSystem();
         }
