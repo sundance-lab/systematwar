@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.05, // Adjusted for smoother follow (was 0.08)
-    CAMERA_ZOOM_LERP_FACTOR: 0.05,   // Set same as follow LERP for consistent smoothness
+    CAMERA_FOLLOW_LERP_FACTOR: 0.05,
+    CAMERA_ZOOM_LERP_FACTOR: 0.05,
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -75,8 +75,8 @@ const CONFIG = {
     },
 
     INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND: 500,
-    COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001, // Not used in current simplified combat, but good to keep.
-    COMBAT_ROUND_DURATION_MS: 100, // Not used in current simplified combat.
+    COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001,
+    COMBAT_ROUND_DURATION_MS: 100,
     COMBAT_ATTACKER_BONUS_PERCENT: 0.1,
     MIN_UNITS_FOR_AI_PLANET: 50,
 };
@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalCallback = null;
 
     playButton.addEventListener('click', () => {
+        console.log("Play button clicked."); // DEBUG
         titleScreen.classList.remove('active');
         gameScreen.classList.add('active');
 
@@ -166,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         planetListPanel.classList.add('active');
         playerUnitsPanel.classList.add('active');
         gameActive = true;
+        console.log("Game state after Play: gameActive=", gameActive, "selectingStarterPlanet=", selectingStarterPlanet); // DEBUG
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
@@ -175,8 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     confirmPlanetButton.addEventListener('click', () => {
+        console.log("Confirm Planet button clicked."); // DEBUG
         planetChosenPanel.classList.remove('active');
-        selectingStarterPlanet = false;
+        selectingStarterPlanet = false; // Important: Set this to false here
+        console.log("Game state after Confirm: selectingStarterPlanet=", selectingStarterPlanet); // DEBUG
         
         chosenStarterPlanet.owner = 'player';
         chosenStarterPlanet.units = CONFIG.STARTER_PLANET_INITIAL_UNITS;
@@ -190,12 +194,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     modalConfirm.addEventListener('click', () => {
+        console.log("Modal OK clicked."); // DEBUG
         hideModal();
         if (modalCallback) modalCallback();
         modalCallback = null;
     });
 
     modalInputConfirm.addEventListener('click', () => {
+        console.log("Modal Input OK clicked."); // DEBUG
         const inputValue = parseInt(modalInput.value);
         hideModal();
         if (modalCallback) modalCallback(inputValue);
@@ -203,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showModal(message, type, callback = null) {
+        console.log(`SHOW MODAL CALLED: Type='${type}', Message='${message}'`); // DEBUG
         modalMessage.textContent = message;
         modalCallback = callback;
 
@@ -220,23 +227,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         gameModalBackdrop.classList.add('active');
         gameModal.classList.add('active');
-        gameActive = false;
+        gameActive = false; // Pause game interaction while modal is open
+        console.log("Modal display state: backdrop active=", gameModalBackdrop.classList.contains('active'), "modal active=", gameModal.classList.contains('active')); // DEBUG
     }
 
     function hideModal() {
+        console.log("HIDE MODAL CALLED."); // DEBUG
         gameModalBackdrop.classList.remove('active');
         gameModal.classList.remove('active');
-        gameActive = true;
+        gameActive = true; // Resume game interaction
     }
 
+    // Handle right-click (contextmenu) for invasion
     canvas.addEventListener('contextmenu', (e) => {
+        console.log("CONTEXTMENU EVENT FIRED!"); // DEBUG
+        console.log("gameActive:", gameActive, "gameModalBackdrop active:", gameModalBackdrop.classList.contains('active')); // DEBUG
+        console.log("chosenStarterPlanet:", chosenStarterPlanet ? chosenStarterPlanet.name : "null", "selectingStarterPlanet:", selectingStarterPlanet); // DEBUG
+
         if (!gameActive) return;
         e.preventDefault();
 
         if (gameModalBackdrop.classList.contains('active')) return;
 
-        if (!chosenStarterPlanet || selectingStarterPlanet) {
+        if (!chosenStarterPlanet) {
             showModal("You must choose your starter planet first!", 'alert');
+            return;
+        }
+        if (selectingStarterPlanet) {
+            showModal("Please click 'Continue' after choosing your starter planet.", 'alert');
             return;
         }
 
@@ -244,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const mouseY = e.clientY;
         const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+        console.log(`CONTEXTMENU: Mouse click world coords: (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`); // DEBUG
 
         let targetPlanet = null;
         for (let i = 0; i < currentPlanets.length; i++) {
@@ -263,14 +282,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 Math.pow(worldX - planetWorldX, 2) +
                 Math.pow(worldY - planetWorldY, 2)
             );
-
+            // console.log(`  - Checking ${planet.name}: world (${planetWorldX.toFixed(2)},${planetWorldY.toFixed(2)}), radius ${planet.radius}, dist ${distance.toFixed(2)}`); // VERBOSE DEBUG LOG
             if (distance < planet.radius) {
                 targetPlanet = planet;
+                console.log(`CONTEXTMENU: Hit planet: ${planet.name}`); // DEBUG
                 break;
             }
         }
 
         if (targetPlanet) {
+            console.log(`CONTEXTMENU: Target planet detected: ${targetPlanet.name}. Owner: ${targetPlanet.owner}`); // DEBUG
             if (targetPlanet.owner === 'player') {
                 showModal("You already control this planet!", 'alert');
                 return;
@@ -281,6 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             showModal(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units (max ${chosenStarterPlanet.units}):`, 'prompt', (unitsToSend) => {
+                console.log(`CONTEXTMENU: Units to send callback: ${unitsToSend}`); // DEBUG
                 if (isNaN(unitsToSend) || unitsToSend <= 0 || unitsToSend > chosenStarterPlanet.units) {
                     showModal("Invalid number of units or not enough units available.", 'alert');
                     return;
@@ -316,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
         } else {
+            console.log("CONTEXTMENU: Right-clicked empty space, showing info modal."); // DEBUG
             showModal("Right-click to select a target planet for invasion!", 'alert');
         }
     });
@@ -348,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resolveCombat(fleet) {
+        console.log(`COMBAT: Resolving combat for fleet from ${fleet.source.name} to ${fleet.target.name}`); // DEBUG
         const attackerUnits = fleet.units;
         const defenderUnits = fleet.target.units;
         const targetPlanet = fleet.target;
@@ -375,12 +399,13 @@ document.addEventListener('DOMContentLoaded', () => {
             targetPlanet.owner = 'player';
             targetPlanet.units = remainingAttackerUnits;
             updatePlanetListItem(targetPlanet);
-            playerUnits += remainingAttackerUnits;
+            playerUnits += remainingAttackerUnits; // Add remaining units to global pool
         } else {
             resultMessage = `Invasion failed! Your ${attackerUnits} units were defeated by ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
             resultMessage += `\n${remainingDefenderUnits} units remain on ${targetPlanet.name}.`;
             targetPlanet.units = remainingDefenderUnits;
             updatePlanetListItem(targetPlanet);
+            // No units return to player if failed
         }
         showModal(resultMessage, 'alert');
     }
@@ -398,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-        // FIX: camera.zoom always updates when wheel is scrolled
         if (e.deltaY < 0) {
             camera.zoom *= camera.scaleFactor;
         } else {
@@ -406,10 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-        camera.targetZoom = camera.zoom; // Sync targetZoom with current manual zoom
+        camera.targetZoom = camera.zoom;
 
-        // FIX: Only adjust camera position if NOT following a target planet
-        // This prevents rubberbanding for position while allowing zoom level change
         if (!camera.targetPlanet) {
             const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
             const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
@@ -432,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
             const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-            let clickedPlanet = null; // Detect if any planet was clicked
+            let clickedPlanet = null;
             for (let i = 0; i < currentPlanets.length; i++) {
                 const planet = currentPlanets[i];
                 let planetWorldX, planetWorldY;
@@ -459,14 +481,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             if (selectingStarterPlanet && clickedPlanet) {
-                // If in starter selection phase and a planet was clicked
                 chosenStarterPlanet = clickedPlanet;
                 starterPlanetPanel.classList.remove('active');
                 chosenPlanetNameDisplay.textContent = `You chose ${clickedPlanet.name}!`;
                 planetChosenPanel.classList.add('active');
                 clickHandled = true;
 
-                // Also set this as the initial camera target and list highlight
                 if (clickedPlanet.listItemRef) {
                     if (camera.activeListItem) camera.activeListItem.classList.remove('active');
                     clickedPlanet.listItemRef.classList.add('active');
@@ -476,9 +496,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
 
             } else if (!selectingStarterPlanet && chosenStarterPlanet) {
-                // If not in starter selection, and player has a home planet
-
-                // Attempt asteroid shooting first
                 let asteroidHit = false;
                 for (let i = asteroids.length - 1; i >= 0; i--) {
                     const asteroid = asteroids[i];
@@ -497,7 +514,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // NEW FIX: If no asteroid was hit, AND a planet was clicked, then focus the camera on it.
                 if (!asteroidHit && clickedPlanet) {
                     if (camera.activeListItem) camera.activeListItem.classList.remove('active');
                     if (clickedPlanet.listItemRef) {
@@ -510,7 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Only allow dragging if the click wasn't handled by selection/shooting/focus AND camera is NOT currently following
             if (!clickHandled && !camera.targetPlanet) { 
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -858,7 +873,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const systemCenterX = 0;
         const systemCenterY = 0;
 
-        // Draw the Star
         ctx.beginPath();
         ctx.arc(systemCenterX, systemCenterY, currentStarRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'yellow';
@@ -867,7 +881,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Draw planets
         currentPlanets.forEach(planet => {
             ctx.beginPath();
             if (planet.isElliptical) {
@@ -912,15 +925,29 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
         });
 
-        // Draw asteroids
-        asteroids.forEach(asteroid => {
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+            const asteroid = asteroids[i];
+            if (performance.now() - asteroid.spawnTime > CONFIG.ASTEROID_LIFETIME_MS) {
+                asteroids.splice(i, 1);
+                continue;
+            }
+            asteroid.x += asteroid.velocityX;
+            asteroid.y += asteroid.velocityY;
+
+            const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
+            const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
+
+            if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
+                asteroids.splice(i, 1);
+                continue;
+            }
+
             ctx.beginPath();
             ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
             ctx.fillStyle = asteroid.color;
             ctx.fill();
-        });
+        }
 
-        // Draw active invasion fleets
         activeFleets.forEach(fleet => {
             ctx.beginPath();
             ctx.arc(fleet.currentX, fleet.currentY, 8 / camera.zoom, 0, Math.PI * 2);
