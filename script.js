@@ -5,9 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('solar-system-canvas');
     const ctx = canvas.getContext('2d');
     const starterPlanetPanel = document.getElementById('starter-planet-panel');
-    const planetChosenPanel = document.getElementById('planet-chosen-panel'); // New panel
-    const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name'); // Text inside new panel
-    const confirmPlanetButton = document.getElementById('confirm-planet-button'); // Button inside new panel
+    const planetChosenPanel = document.getElementById('planet-chosen-panel');
+    const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
+    const confirmPlanetButton = document.getElementById('confirm-planet-button');
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -19,15 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const camera = {
         x: 0,
         y: 0,
-        zoom: 0.1,
+        zoom: 1, // Will be set dynamically
         scaleFactor: 1.1,
         dragSensitivity: 0.8
     };
 
     let isDragging = false;
     let lastMouseX, lastMouseY;
-    let selectingStarterPlanet = false; // Controls if planet selection is active
-    let gameActive = false; // New state to control overall interaction after setup
+    let selectingStarterPlanet = false;
+    let gameActive = false;
 
     const planetNames = [
         "Aethel", "Xylos", "Cygnus", "Vorlag", "Zandor",
@@ -38,28 +38,35 @@ document.addEventListener('DOMContentLoaded', () => {
         "Echo", "Phobos", "Deimos", "Ares", "Hecate"
     ];
 
+
     playButton.addEventListener('click', () => {
         titleScreen.classList.remove('active');
         gameScreen.classList.add('active');
+
+        // Initialize solar system first to get star and planet data
         initSolarSystem();
+
+        // Then calculate initial zoom based on generated system
+        setInitialCameraZoom();
+
+        // Reset camera position to center (0,0) of the world
         camera.x = 0;
         camera.y = 0;
-        camera.zoom = 0.005; // Make camera start even further away due to massive sun
+
         animateSolarSystem();
 
         selectingStarterPlanet = true;
-        starterPlanetPanel.classList.add('active'); // Show in-game panel
-        gameActive = true; // Game interactions now allowed
+        starterPlanetPanel.classList.add('active');
+        gameActive = true;
     });
 
     confirmPlanetButton.addEventListener('click', () => {
-        planetChosenPanel.classList.remove('active'); // Hide confirmation panel
-        selectingStarterPlanet = false; // End selection phase for good
-        // Potentially transition to next game state here
+        planetChosenPanel.classList.remove('active');
+        selectingStarterPlanet = false;
     });
 
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive) return; // Only allow zoom if game is active
+        if (!gameActive) return;
 
         e.preventDefault();
 
@@ -75,17 +82,16 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.zoom /= camera.scaleFactor;
         }
 
-        camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50)); // Adjusted min zoom for massive suns
+        camera.zoom = Math.max(0.00001, Math.min(camera.zoom, 50)); // Adjusted min zoom further
 
         camera.x = -worldXAtMouse + (mouseX - canvas.width / 2) / camera.zoom;
         camera.y = -worldYAtMouse + (mouseY - canvas.height / 2) / camera.zoom;
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        if (!gameActive) return; // Only allow clicks if game is active
+        if (!gameActive) return;
 
         if (e.button === 0) { // Left mouse button
-            // If selecting a planet, handle click for selection
             if (selectingStarterPlanet) {
                 const mouseX = e.clientX;
                 const mouseY = e.clientY;
@@ -112,14 +118,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     if (distance < planet.radius) {
-                        starterPlanetPanel.classList.remove('active'); // Hide initial prompt
-                        chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`; // Set text
-                        planetChosenPanel.classList.add('active'); // Show confirmation panel
-                        // selectingStarterPlanet remains true until "Continue" is clicked
-                        return; // Stop checking
+                        starterPlanetPanel.classList.remove('active');
+                        chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`;
+                        planetChosenPanel.classList.add('active');
+                        return;
                     }
                 }
-            } else { // Else, handle drag initiation
+            } else {
                 e.preventDefault();
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -129,9 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive) return; // Only allow mousemove if game is active
+        if (!gameActive) return;
 
-        if (isDragging && !selectingStarterPlanet) { // Only drag if dragging and not in selection confirmation mode
+        if (isDragging && !selectingStarterPlanet) {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
@@ -144,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive) return; // Only allow mouseup if game is active
+        if (!gameActive) return;
 
         if (e.button === 0 && !selectingStarterPlanet) {
             isDragging = false;
@@ -152,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive) return; // Only allow mouseleave if game is active
+        if (!gameActive) return;
         isDragging = false;
     });
 
@@ -160,27 +165,21 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const originalStarRadius = 20;
-        // Sun to be very larger than it is now.
-        // Let's aim for a much higher average, scaling up the min/max significantly.
-        // Current average star radius: (12000 + 120000) / 2 = 66000
-        // Let's target an average of ~3,000,000 to 5,000,000 pixels.
-        const minStarRadius = originalStarRadius * 10000; // 20 * 10000 = 200,000
-        const maxStarRadius = originalStarRadius * 50000; // 20 * 50000 = 1,000,000
-        // These numbers will be constrained by the maxOverallOrbitRadius, which becomes the practical limit
-        // unless you zoom way out immediately.
+        // Sun size: min 60,000 to max 600,000
+        const minStarRadius = originalStarRadius * 3000;
+        const maxStarRadius = originalStarRadius * 30000;
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
-        // Removed the strict cap here, letting the star be its full random size.
-        // The camera zoom-out capacity will handle seeing it.
-        // currentStarRadius = Math.min(currentStarRadius, Math.min(canvas.width, canvas.height) * 0.4);
 
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
         const minOverallOrbitRadius = currentStarRadius + 80;
-        const maxOverallOrbitRadius = Math.max(
-            Math.min(canvas.width, canvas.height) * 20, // Keep current screen-based max
-            currentStarRadius * 15 // Allow orbits to scale with truly massive stars
-        );
+        // Max orbit based on a multiplier of the star's radius for truly vast systems.
+        // Also ensure it's at least screen-based if star is small.
+        const starOrbitMultiplier = 30; // Planets can go up to 30x the star's radius away
+        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 20;
+
+        const maxOverallOrbitRadius = Math.max(screenOrbitMultiplier, currentStarRadius * starOrbitMultiplier);
 
 
         currentPlanets = [];
@@ -205,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (actualOrbitRadius > maxOverallOrbitRadius) {
                  if (minimumOrbitDistanceFromPreviousPlanet > maxOverallOrbitRadius) {
-                     break;
+                     break; // Can't place this planet without violating max bounds or overlap.
                  }
                  actualOrbitRadius = maxOverallOrbitRadius;
             }
@@ -247,6 +246,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentPlanets.sort((a, b) => a.orbitRadius - b.orbitRadius);
     }
+
+    // New function to calculate initial zoom
+    function setInitialCameraZoom() {
+        // Find the maximum extent of the solar system (farthest orbit or star radius)
+        let maxWorldExtent = currentStarRadius; // Start with the star's radius
+
+        if (currentPlanets.length > 0) {
+            // Get the orbit radius of the outermost planet
+            const outermostPlanetOrbit = currentPlanets[currentPlanets.length - 1].orbitRadius;
+            // The max extent needs to cover the outermost orbit plus its radius
+            maxWorldExtent = Math.max(maxWorldExtent, outermostPlanetOrbit + currentPlanets[currentPlanets.length - 1].radius);
+            // For elliptical, it's semiMajorAxis + radius
+            if (currentPlanets[currentPlanets.length - 1].isElliptical) {
+                 maxWorldExtent = Math.max(maxWorldExtent, currentPlanets[currentPlanets.length - 1].semiMajorAxis + currentPlanets[currentPlanets.length - 1].radius);
+            }
+        }
+
+        // Add some padding so the system doesn't perfectly fill the screen
+        maxWorldExtent *= 1.2; // 20% padding
+
+        // Calculate required zoom to fit this extent into the smaller canvas dimension
+        const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2); // *2 because extent is radius, we need diameter
+
+        camera.zoom = requiredZoom;
+        // Ensure zoom is within practical limits, but allow it to be very small
+        camera.zoom = Math.max(0.00001, Math.min(camera.zoom, 50));
+    }
+
 
     function animateSolarSystem() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -314,6 +341,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        // If the game is already active, re-calculate zoom to fit new screen size
+        if (gameActive) {
+            cancelAnimationFrame(animationFrameId); // Stop old loop
+            setInitialCameraZoom(); // Recalculate based on new canvas size
+            animateSolarSystem(); // Restart animation
+        }
     });
 
     canvas.style.cursor = 'default';
