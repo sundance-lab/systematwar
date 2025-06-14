@@ -49,7 +49,7 @@ const CONFIG = {
     INITIAL_VIEW_PADDING_FACTOR: 1.2, // Padding for initial zoom calculation
 
     // Camera Tracking
-    CAMERA_FOLLOW_LERP_FACTOR: 0.08, // How smoothly the camera follows (increased for slightly snappier follow)
+    CAMERA_FOLLOW_LERP_FACTOR: 0.03, // DECREASED: How smoothly the camera follows (lower = slower)
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0, // Target zoom level when following a planet (increased for closer view)
 
     // Planet Counter
@@ -113,8 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game State Variables
     let score = 0; // Player's personal score
-    let asteroids = []; // Array to hold active asteroids
-    let chosenStarterPlanet = null; // Stores the planet chosen by the player
+    let asteroids = [];
+    let chosenStarterPlanet = null;
 
     // Interval IDs for clearing
     let planetCounterInterval = null;
@@ -162,12 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     confirmPlanetButton.addEventListener('click', () => {
         planetChosenPanel.classList.remove('active');
-        selectingStarterPlanet = false; // Exit selection mode
+        selectingStarterPlanet = false;
         
-        // --- NEW CAMERA FIX: Don't snap instantly, let LERP handle smooth transition ---
-        camera.targetPlanet = chosenStarterPlanet; // Start following it
-        // The camera's x, y, and zoom will smoothly move from their current state
-        // to center on the chosen planet with the target zoom level.
+        // --- NEW CAMERA FIX: Only set targetPlanet. LERP will handle smooth transition from current view. ---
+        camera.targetPlanet = chosenStarterPlanet; 
 
         // Start asteroid spawning only after a planet is chosen
         if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
@@ -179,17 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        // Stop following a planet on manual zoom
-        camera.targetPlanet = null;
-        if (camera.activeListItem) {
-            camera.activeListItem.classList.remove('active');
-            camera.activeListItem = null;
-        }
+        // When following a planet, zooming should happen around the planet, not unlock
+        // The camera.targetPlanet remains set.
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
 
-        // Calculate world coordinates before zoom based on new camera convention
+        // Calculate world coordinates before zoom based on current camera.x,y (center of screen)
         const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
@@ -201,8 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
 
-        // Adjust camera position to zoom towards the mouse cursor
-        // Based on new camera convention: camera.x,y is world point at center
+        // Adjust camera position to zoom towards the mouse cursor (even if following)
+        // This ensures the point under the cursor stays fixed during zoom.
         const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
@@ -213,14 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
 
-        // Stop following a planet on manual pan attempt
-        if (camera.targetPlanet) {
-            camera.targetPlanet = null;
-            if (camera.activeListItem) {
-                camera.activeListItem.classList.remove('active');
-                camera.activeListItem = null;
-            }
-        }
+        // Clicks for selection/shooting do not unlock the camera anymore.
+        // Only direct list item clicks (handled in populatePlanetList) or an explicit 'unfollow' would.
 
         if (e.button === 0) { // Left mouse button
             e.preventDefault();
@@ -264,8 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } 
             
             // 2. If not selecting a starter planet, or if no planet was clicked, try to shoot an asteroid
-            if (!selectingStarterPlanet && !clickHandled && chosenStarterPlanet) { // Only shoot if game has started & planet chosen
-                for (let i = asteroids.length - 1; i >= 0; i--) { // Iterate backwards to safely remove
+            // This is active even when following a planet.
+            if (!selectingStarterPlanet && !clickHandled && chosenStarterPlanet) {
+                for (let i = asteroids.length - 1; i >= 0; i--) {
                     const asteroid = asteroids[i];
                     const distance = Math.sqrt(
                         Math.pow(worldX - asteroid.x, 2) +
@@ -273,17 +262,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     if (distance < asteroid.radius) {
-                        score += CONFIG.ASTEROID_HIT_POINTS; // Add points
-                        updateScoreDisplay(); // Update display
-                        asteroids.splice(i, 1); // Remove asteroid
+                        score += CONFIG.ASTEROID_HIT_POINTS;
+                        updateScoreDisplay();
+                        asteroids.splice(i, 1);
                         clickHandled = true;
                         break;
                     }
                 }
             }
 
-            // 3. If nothing else was clicked, initiate drag
-            if (!clickHandled) {
+            // 3. If nothing else was clicked AND camera is NOT currently following, initiate drag
+            // This prevents manual panning when the camera is locked onto a planet.
+            if (!clickHandled && !camera.targetPlanet) { 
                 isDragging = true;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
@@ -294,12 +284,11 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', (e) => {
         if (!gameActive) return;
 
-        if (isDragging) {
+        // Only allow manual panning if not currently following a planet
+        if (isDragging && !camera.targetPlanet) {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
-            // Pan based on mouse movement. Camera.x,y are world coords at center.
-            // Moving mouse right (dx > 0) means the view (camera.x) should move left (decrease).
             camera.x -= (dx / camera.zoom) * camera.dragSensitivity;
             camera.y -= (dy / camera.zoom) * camera.dragSensitivity;
 
@@ -429,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
 
-                // NEW CAMERA FIX: On list click, just set target and let LERP handle transition
+                // --- NEW CAMERA FIX: On list click, just set target and let LERP handle smooth transition ---
                 camera.targetPlanet = planet;
                 // No immediate snap of camera.x, y, zoom here. LERP will handle the move.
             });
