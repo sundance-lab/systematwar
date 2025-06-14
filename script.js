@@ -398,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetY = unrotatedX * Math.sin(camera.targetPlanet.rotationAngle) + unrotatedY * Math.cos(camera.targetPlanet.rotationAngle);
             } else {
                 targetX = Math.cos(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
-                targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
+                targetY = Math.sin(camera.targetPlanet.angle) * planet.orbitRadius; // Fixed: Used `planet.orbitRadius` instead of `camera.targetPlanet.orbitRadius`
             }
 
             camera.x = camera.x + ((-targetX / camera.zoom) - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
