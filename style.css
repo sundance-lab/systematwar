@@ -1,17 +1,18 @@
 body {
     margin: 0;
-    overflow: hidden;
+    overflow: hidden; /* Prevents scrollbars */
     font-family: Arial, sans-serif;
-    background-color: #000;
-    color: #fff;
+    background-color: #000; /* Dark background for space */
+    color: #fff; /* Default text color */
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
+    min-height: 100vh; /* Full viewport height */
 }
 
+/* Base styles for game screens */
 .game-screen {
-    display: none;
+    display: none; /* Hidden by default */
     width: 100vw;
     height: 100vh;
     justify-content: center;
@@ -21,19 +22,20 @@ body {
 }
 
 .game-screen.active {
-    display: flex;
+    display: flex; /* Show when active */
 }
 
+/* Title Screen Specifics */
 #title-screen h1 {
     font-size: 4em;
     margin-bottom: 20px;
-    text-shadow: 0 0 10px #0f0, 0 0 20px #0f0;
+    text-shadow: 0 0 10px #0f0, 0 0 20px #0f0; /* Green glow effect */
 }
 
 #play-button {
     padding: 15px 30px;
     font-size: 1.5em;
-    background-color: #008000;
+    background-color: #008000; /* Green */
     color: white;
     border: none;
     border-radius: 8px;
@@ -42,20 +44,21 @@ body {
 }
 
 #play-button:hover {
-    background-color: #006400;
+    background-color: #006400; /* Darker green */
     transform: scale(1.05);
 }
 
+/* Canvas background and default cursor */
 #solar-system-canvas {
-    background-color: #000;
-    display: block;
-    cursor: default; /* Default mouse cursor */
+    background-color: #000; /* Space background */
+    display: block; /* Remove extra space below canvas */
+    cursor: default; /* Standard mouse cursor over the game */
 }
 
-/* In-game panel styling */
+/* Base styling for all in-game UI panels */
 .in-game-panel {
-    position: absolute;
-    background-color: rgba(0, 0, 0, 0.85); /* Semi-transparent background */
+    position: absolute; /* Position panels absolutely within .game-screen */
+    background-color: rgba(0, 0, 0, 0.85); /* Semi-transparent dark background */
     border: 2px solid #0f0; /* Green border */
     padding: 15px 25px;
     border-radius: 10px;
@@ -63,35 +66,35 @@ body {
     font-size: 1.2em;
     text-align: center;
     box-shadow: 0 0 15px rgba(0, 255, 0, 0.5); /* Green glow */
-    z-index: 100; /* Ensure it's above the canvas */
+    z-index: 100; /* Ensure panels are above the canvas */
     display: none; /* Hidden by default */
 }
 
 .in-game-panel.active {
-    display: block;
+    display: block; /* Show when active */
 }
 
+/* Positioning for starter planet prompt and chosen planet confirm panels */
 #starter-planet-panel,
 #planet-chosen-panel {
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%); /* Center horizontally */
+    top: 20px; /* Near the top */
+    left: 50%; /* Horizontal center */
+    transform: translateX(-50%); /* Adjust for perfect centering */
 }
 
-/* Updated: Planet List Panel specific styling */
+/* Planet List Panel specific styling (now with fixed size and bottom-right position) */
 #planet-list-panel {
-    top: auto; /* Remove top constraint */
+    top: auto; /* Override top: 20px from .in-game-panel */
     bottom: 20px; /* Pin to bottom */
     right: 20px; /* Pin to right */
-    left: auto;
-    transform: none;
-    width: 180px; /* Decreased width a lot */
-    height: 300px; /* Decreased height a lot */
-    overflow-y: auto;
-    padding: 10px;
-    box-sizing: border-box;
-    text-align: left;
-    display: none; /* Hidden by default */
+    left: auto; /* Override left: 50% */
+    transform: none; /* Override translateX(-50%) */
+    width: 180px; /* Decreased width */
+    height: 300px; /* Decreased height */
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding: 10px; /* Adjust padding for list content */
+    box-sizing: border-box; /* Include padding in width/height */
+    text-align: left; /* Align text within panel */
 }
 
 #planet-list-panel h2 {
@@ -104,34 +107,41 @@ body {
 }
 
 #planet-list {
-    list-style: none;
+    list-style: none; /* Remove default list bullets */
     padding: 0;
     margin: 0;
 }
 
 #planet-list li {
-    padding: 6px 5px; /* Slightly smaller padding */
-    border-bottom: 1px dashed rgba(0, 255, 0, 0.1);
+    padding: 6px 5px; /* Slightly smaller padding for list items */
+    border-bottom: 1px dashed rgba(0, 255, 0, 0.1); /* Faint separator */
     cursor: pointer;
     transition: background-color 0.2s ease, color 0.2s ease;
     font-size: 0.95em; /* Slightly smaller font */
-    user-select: none;
-    white-space: nowrap; /* Prevent name from wrapping */
-    overflow: hidden; /* Hide overflowed text */
-    text-overflow: ellipsis; /* Add ellipsis for overflowed text */
+    user-select: none; /* Prevent text selection on click */
+    white-space: nowrap; /* Prevent text wrapping */
+    overflow: hidden; /* Hide overflowing text */
+    text-overflow: ellipsis; /* Add "..." for overflowed text */
 }
 
 #planet-list li:last-child {
-    border-bottom: none;
+    border-bottom: none; /* No border for the last item */
 }
 
 #planet-list li:hover {
-    background-color: rgba(0, 255, 0, 0.15);
+    background-color: rgba(0, 255, 0, 0.15); /* Subtle hover effect */
     color: #fff;
 }
 
-#planet-list li.active {
+#planet-list li.active { /* Style for the currently followed planet in the list */
     background-color: rgba(0, 255, 0, 0.3);
     color: #fff;
     font-weight: bold;
+}
+
+/* Optional: style for the counter span within list item */
+#planet-list li .planet-number {
+    color: rgba(0, 255, 0, 0.7); /* Slightly dimmer green for the counter */
+    font-weight: normal;
+    margin-right: 5px;
 }
