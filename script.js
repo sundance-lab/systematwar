@@ -161,19 +161,20 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const originalStarRadius = 20;
-        // Sun a little larger than now (400-1000px), but not as big as before (60k-600k).
-        // Let's aim for a range around 1500px to 3000px.
         const minStarRadius = originalStarRadius * 75; // 1500px
         const maxStarRadius = originalStarRadius * 150; // 3000px
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
 
-        const numPlanets = Math.floor(Math.random() * 11) + 2;
+        // Minimum number of planets spawn be 6 (max 12 still)
+        const numPlanets = Math.floor(Math.random() * 7) + 6; // (12 - 6 + 1) + 6 = 7 + 6 = range of 6 to 12
+
 
         const minOverallOrbitRadius = currentStarRadius + 80;
-        // Increase orbital distance. Use a higher multiplier for star-based orbits.
-        const starOrbitMultiplier = 30; // Increased from 15
-        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 5; // Reverted to a higher multiplier for screen, was *2
+        // Increase the max distance a planet can be orbiting the sun by a lot.
+        // Screen-based multiplier significantly increased.
+        const starOrbitMultiplier = 50; // Increased from 30
+        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 10; // Increased from 5
 
         const maxOverallOrbitRadius = Math.max(screenOrbitMultiplier, currentStarRadius * starOrbitMultiplier);
 
@@ -191,9 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
 
-            // These are the previous wide ranges. Reverted them to be as wide as before.
-            const minSpacingBetweenOrbits = 300;
-            const maxSpacingBetweenOrbits = 1500;
+            // Further vary the orbit distances from one another.
+            // Made the range for minSpacingBetweenOrbits and maxSpacingBetweenOrbits much wider.
+            const minSpacingBetweenOrbits = 500; // Increased from 300
+            const maxSpacingBetweenOrbits = 3000; // Increased from 1500
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
