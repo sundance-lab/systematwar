@@ -1,3 +1,56 @@
+// --- CONFIGURATION VARIABLES ---
+const CONFIG = {
+    // Game Flow & UI
+    PLANET_NAMES: [
+        "Aethel", "Xylos", "Cygnus", "Vorlag", "Zandor",
+        "Kryll", "Solara", "Draxia", "Vespera", "Rilax",
+        "Obsidia", "Lumios", "Nyssa", "Grendel", "Thar",
+        "Equinox", "Zenith", "Nebulon", "Seraph", "Orion",
+        "Aethera", "Titanis", "Vortexia", "Stellara", "Grimor",
+        "Echo", "Phobos", "Deimos", "Ares", "Hecate"
+    ],
+
+    // Star Properties
+    ORIGINAL_STAR_RADIUS: 20, // Base reference for scaling
+    MIN_STAR_MULTIPLIER: 75,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
+    MAX_STAR_MULTIPLIER: 150,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
+
+    // Planet Properties
+    PLANET_RADIUS_MIN_BASE: 5,
+    PLANET_RADIUS_MAX_BASE: 14,
+    PLANET_RADIUS_SCALE_FACTOR: 10, // Planets are (5-14) * 10 = 50-140px
+    MIN_PLANETS: 6, // Minimum number of planets to spawn
+    MAX_PLANETS: 12, // Maximum number of planets to spawn
+
+    // Orbit Properties
+    MIN_ORBIT_START_FROM_STAR: 80, // Min initial distance from star for first planet
+    STAR_ORBIT_MULTIPLIER: 50,     // Max orbit can be STAR_ORBIT_MULTIPLIER * currentStarRadius
+    SCREEN_ORBIT_MULTIPLIER: 10,   // Max orbit can be SCREEN_ORBIT_MULTIPLIER * min(canvas.width, canvas.height)
+
+    MIN_SPACING_BETWEEN_ORBITS: 500,  // Min random gap between orbits
+    MAX_SPACING_BETWEEN_ORBITS: 3000, // Max random gap between orbits
+    MIN_PLANET_CLEARANCE: 10,         // Min pixel space between actual planet bodies on different orbits
+
+    ORBIT_LINE_WIDTH: 0.25, // Base width of orbit lines
+
+    MIN_ORBIT_SPEED: 0.0001,
+    MAX_ORBIT_SPEED: 0.003,
+
+    ELLIPTICAL_ORBIT_CHANCE: 0.15, // 15% chance for elliptical orbit
+    ELLIPSE_ECCENTRICITY_MIN: 0.1,
+    ELLIPSE_ECCENTRICITY_MAX: 0.8,
+
+    // Camera Properties
+    CAMERA_INITIAL_ZOOM: 1, // Will be dynamically calculated. Placeholder.
+    CAMERA_SCALE_FACTOR: 1.1, // Zoom step size
+    CAMERA_DRAG_SENSITIVITY: 0.8, // Slower drag
+    CAMERA_MIN_ZOOM: 0.0001, // Max zoom out (can go very far)
+    CAMERA_MAX_ZOOM: 50,     // Max zoom in
+    INITIAL_VIEW_PADDING_FACTOR: 1.2, // Padding for initial zoom calculation
+};
+// --- END CONFIGURATION VARIABLES ---
+
+
 document.addEventListener('DOMContentLoaded', () => {
     const titleScreen = document.getElementById('title-screen');
     const gameScreen = document.getElementById('game-screen');
@@ -19,24 +72,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const camera = {
         x: 0,
         y: 0,
-        zoom: 1, // Will be set dynamically to fit system
-        scaleFactor: 1.1,
-        dragSensitivity: 0.8
+        zoom: CONFIG.CAMERA_INITIAL_ZOOM, // Use config
+        scaleFactor: CONFIG.CAMERA_SCALE_FACTOR, // Use config
+        dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY // Use config
     };
 
     let isDragging = false;
     let lastMouseX, lastMouseY;
     let selectingStarterPlanet = false;
-    let gameActive = false;
-
-    const planetNames = [
-        "Aethel", "Xylos", "Cygnus", "Vorlag", "Zandor",
-        "Kryll", "Solara", "Draxia", "Vespera", "Rilax",
-        "Obsidia", "Lumios", "Nyssa", "Grendel", "Thar",
-        "Equinox", "Zenith", "Nebulon", "Seraph", "Orion",
-        "Aethera", "Titanis", "Vortexia", "Stellara", "Grimor",
-        "Echo", "Phobos", "Deimos", "Ares", "Hecate"
-    ];
+    let gameActive = false; // Controls overall interaction after setup
 
 
     playButton.addEventListener('click', () => {
@@ -62,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive) return;
+        if (!gameActive) return; // Allow zoom only if game is active
 
         e.preventDefault();
 
@@ -78,16 +122,20 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.zoom /= camera.scaleFactor;
         }
 
-        camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50)); // Allow very far zoom out
+        camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
 
         camera.x = -worldXAtMouse + (mouseX - canvas.width / 2) / camera.zoom;
         camera.y = -worldYAtMouse + (mouseY - canvas.height / 2) / camera.zoom;
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        if (!gameActive) return;
+        if (!gameActive) return; // Allow clicks only if game is active
 
         if (e.button === 0) { // Left mouse button
+            e.preventDefault(); // Prevent default browser drag for images, etc.
+            let planetClicked = false;
+
+            // Handle planet selection if in selecting mode
             if (selectingStarterPlanet) {
                 const mouseX = e.clientX;
                 const mouseY = e.clientY;
@@ -117,11 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         starterPlanetPanel.classList.remove('active');
                         chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`;
                         planetChosenPanel.classList.add('active');
-                        return;
+                        planetClicked = true;
+                        break; // Stop checking
                     }
                 }
-            } else {
-                e.preventDefault();
+            }
+
+            // If a planet was NOT clicked OR if we're not in planet selection mode, allow dragging.
+            // This ensures dragging works on empty space even when the "choose planet" panel is up.
+            if (!planetClicked) {
                 isDragging = true;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
@@ -130,9 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive) return;
+        if (!gameActive) return; // Allow mousemove only if game is active
 
-        if (isDragging && !selectingStarterPlanet) {
+        if (isDragging) { // Dragging is now independent of selectingStarterPlanet state
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
@@ -145,57 +197,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive) return;
+        if (!gameActive) return; // Allow mouseup only if game is active
 
-        if (e.button === 0 && !selectingStarterPlanet) {
+        if (e.button === 0) { // Stop dragging regardless of selection state
             isDragging = false;
         }
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive) return;
+        if (!gameActive) return; // Allow mouseleave only if game is active
         isDragging = false;
     });
 
     function initSolarSystem() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const originalStarRadius = 20;
-        const minStarRadius = originalStarRadius * 75; // 1500px
-        const maxStarRadius = originalStarRadius * 150; // 3000px
+        const originalStarRadius = CONFIG.ORIGINAL_STAR_RADIUS;
+        const minStarRadius = originalStarRadius * CONFIG.MIN_STAR_MULTIPLIER;
+        const maxStarRadius = originalStarRadius * CONFIG.MAX_STAR_MULTIPLIER;
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
 
-        // Minimum number of planets spawn be 6 (max 12 still)
-        const numPlanets = Math.floor(Math.random() * 7) + 6; // (12 - 6 + 1) + 6 = 7 + 6 = range of 6 to 12
+        const numPlanets = Math.floor(Math.random() * (CONFIG.MAX_PLANETS - CONFIG.MIN_PLANETS + 1)) + CONFIG.MIN_PLANETS;
 
-
-        const minOverallOrbitRadius = currentStarRadius + 80;
-        // Increase the max distance a planet can be orbiting the sun by a lot.
-        // Screen-based multiplier significantly increased.
-        const starOrbitMultiplier = 50; // Increased from 30
-        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 10; // Increased from 5
-
-        const maxOverallOrbitRadius = Math.max(screenOrbitMultiplier, currentStarRadius * starOrbitMultiplier);
-
+        const minOverallOrbitRadius = currentStarRadius + CONFIG.MIN_ORBIT_START_FROM_STAR;
+        const maxOverallOrbitRadius = Math.max(
+            Math.min(canvas.width, canvas.height) * CONFIG.SCREEN_ORBIT_MULTIPLIER,
+            currentStarRadius * CONFIG.STAR_ORBIT_MULTIPLIER
+        );
 
         currentPlanets = [];
-        const shuffledPlanetNames = [...planetNames].sort(() => 0.5 - Math.random());
+        const shuffledPlanetNames = [...CONFIG.PLANET_NAMES].sort(() => 0.5 - Math.random());
 
         let previousOrbitRadius = minOverallOrbitRadius;
 
         for (let i = 0; i < numPlanets; i++) {
-            const planetRadius = (Math.floor(Math.random() * 10) + 5) * 10;
+            const planetRadius = (Math.floor(Math.random() * (CONFIG.PLANET_RADIUS_MAX_BASE - CONFIG.PLANET_RADIUS_MIN_BASE + 1)) + CONFIG.PLANET_RADIUS_MIN_BASE) * CONFIG.PLANET_RADIUS_SCALE_FACTOR;
 
-            const minPlanetClearance = 10;
+            const minPlanetClearance = CONFIG.MIN_PLANET_CLEARANCE;
             const minimumOrbitDistanceFromPreviousPlanet = previousOrbitRadius +
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
 
-            // Further vary the orbit distances from one another.
-            // Made the range for minSpacingBetweenOrbits and maxSpacingBetweenOrbits much wider.
-            const minSpacingBetweenOrbits = 500; // Increased from 300
-            const maxSpacingBetweenOrbits = 3000; // Increased from 1500
+            const minSpacingBetweenOrbits = CONFIG.MIN_SPACING_BETWEEN_ORBITS;
+            const maxSpacingBetweenOrbits = CONFIG.MAX_SPACING_BETWEEN_ORBITS;
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
@@ -209,19 +254,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const initialAngle = Math.random() * Math.PI * 2;
-            const minOrbitSpeed = 0.0001;
-            const maxOrbitSpeed = 0.003;
+            const minOrbitSpeed = CONFIG.MIN_ORBIT_SPEED;
+            const maxOrbitSpeed = CONFIG.MAX_ORBIT_SPEED;
 
             const orbitSpeed = (minOrbitSpeed + Math.random() * (maxOrbitSpeed - minOrbitSpeed)) * (Math.random() > 0.5 ? 1 : -1);
 
-            const isElliptical = Math.random() < 0.15;
+            const isElliptical = Math.random() < CONFIG.ELLIPTICAL_ORBIT_CHANCE;
             let semiMajorAxis = actualOrbitRadius;
             let semiMinorAxis = actualOrbitRadius;
             let eccentricity = 0;
             let rotationAngle = 0;
 
             if (isElliptical) {
-                eccentricity = Math.random() * 0.7 + 0.1;
+                eccentricity = Math.random() * (CONFIG.ELLIPSE_ECCENTRICITY_MAX - CONFIG.ELLIPSE_ECCENTRICITY_MIN) + CONFIG.ELLIPSE_ECCENTRICITY_MIN;
                 semiMinorAxis = semiMajorAxis * Math.sqrt(1 - eccentricity * eccentricity);
                 rotationAngle = Math.random() * Math.PI * 2;
             }
@@ -255,12 +300,12 @@ document.addEventListener('DOMContentLoaded', () => {
             maxWorldExtent = Math.max(maxWorldExtent, outermostDistance + outermostPlanet.radius);
         }
 
-        maxWorldExtent *= 1.2; // 20% padding
+        maxWorldExtent *= CONFIG.INITIAL_VIEW_PADDING_FACTOR;
 
         const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2);
 
         camera.zoom = requiredZoom;
-        camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50));
+        camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
     }
 
 
@@ -298,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 ctx.arc(systemCenterX, systemCenterY, planet.orbitRadius, 0, Math.PI * 2);
             }
-            ctx.lineWidth = 0.25 / camera.zoom;
+            ctx.lineWidth = CONFIG.ORBIT_LINE_WIDTH / camera.zoom;
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.stroke();
 
