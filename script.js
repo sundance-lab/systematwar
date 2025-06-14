@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastMouseX, lastMouseY;
     let selectingStarterPlanet = false;
     let gameActive = false;
-    let planetCounterInterval = null; // NEW: To store the setInterval ID
+    let planetCounterInterval = null;
 
 
     playButton.addEventListener('click', () => {
@@ -115,16 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
         planetListPanel.classList.add('active');
         gameActive = true;
 
-        // NEW: Start the planet counter
-        if (planetCounterInterval) clearInterval(planetCounterInterval); // Clear any old interval
+        if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
     });
 
     confirmPlanetButton.addEventListener('click', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false;
-        // Optionally, reset camera target after choosing a planet, or set to the chosen planet
-        // camera.targetPlanet = null; // To immediately stop following
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -132,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        // Stop following a planet on manual zoom
         camera.targetPlanet = null;
         if (camera.activeListItem) {
             camera.activeListItem.classList.remove('active');
@@ -160,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
 
-        // Stop following a planet on manual pan attempt
         if (camera.targetPlanet) {
             camera.targetPlanet = null;
             if (camera.activeListItem) {
@@ -318,8 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 semiMinorAxis: semiMinorAxis,
                 eccentricity: eccentricity,
                 rotationAngle: rotationAngle,
-                timeSurvived: 0, // NEW: Initialize planet counter
-                listItemRef: null // NEW: Placeholder for reference to its list item element
+                timeSurvived: 0,
+                listItemRef: null
             });
 
             previousOrbitRadius = actualOrbitRadius;
@@ -328,47 +323,40 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlanets.sort((a, b) => a.orbitRadius - b.orbitRadius);
     }
 
-    // NEW: Function to populate the planet list UI
     function populatePlanetList() {
-        planetList.innerHTML = ''; // Clear existing list items
+        planetList.innerHTML = '';
 
         currentPlanets.forEach((planet, index) => {
             const listItem = document.createElement('li');
             const planetNumberSpan = document.createElement('span');
-            planetNumberSpan.classList.add('planet-number'); // Optional: for specific styling if needed
-            planetNumberSpan.textContent = `0s `; // Initial counter display
+            planetNumberSpan.classList.add('planet-number');
+            planetNumberSpan.textContent = `0s `;
 
             const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name}`);
 
             listItem.appendChild(planetNumberSpan);
             listItem.appendChild(planetNameText);
-            listItem.dataset.planetIndex = index; // Store index for easy lookup
+            listItem.dataset.planetIndex = index;
 
-            // Store reference to the list item element directly in the planet object
             planet.listItemRef = listItem;
 
             listItem.addEventListener('click', () => {
-                // Remove active class from previously active item
                 if (camera.activeListItem) {
                     camera.activeListItem.classList.remove('active');
                 }
-                // Add active class to the clicked item
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
 
-                // Set target planet for camera to follow
                 camera.targetPlanet = planet;
             });
             planetList.appendChild(listItem);
         });
     }
 
-    // NEW: Function to update planet counters every second
     function updatePlanetCounters() {
         currentPlanets.forEach((planet, index) => {
             planet.timeSurvived++;
-            if (planet.listItemRef) { // Ensure the list item exists
-                // Update only the counter part of the text content
+            if (planet.listItemRef) {
                 const counterSpan = planet.listItemRef.querySelector('.planet-number');
                 if (counterSpan) {
                     counterSpan.textContent = `${planet.timeSurvived}s `;
@@ -401,10 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        // Camera follow logic
         if (camera.targetPlanet) {
             let targetX, targetY;
-            // Get the current world position of the target planet
             if (camera.targetPlanet.isElliptical) {
                 const unrotatedX = camera.targetPlanet.semiMajorAxis * Math.cos(camera.targetPlanet.angle);
                 const unrotatedY = camera.targetPlanet.semiMinorAxis * Math.sin(camera.targetPlanet.angle);
@@ -415,15 +401,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
             }
 
-            // Smoothly move camera towards the target planet's current position
             camera.x = camera.x + ((-targetX / camera.zoom) - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
             camera.y = camera.y + ((-targetY / camera.zoom) - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
 
-            // Smoothly adjust zoom to target follow zoom
             camera.zoom = camera.zoom + (CONFIG.CAMERA_FOLLOW_ZOOM_TARGET - camera.zoom) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
-            camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM)); // Clamp
+            camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
         }
-
 
         ctx.scale(camera.zoom, camera.zoom);
         ctx.translate(camera.x, camera.y);
