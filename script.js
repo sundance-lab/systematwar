@@ -50,10 +50,25 @@ const CONFIG = {
 
     // Camera Tracking
     CAMERA_FOLLOW_LERP_FACTOR: 0.05, // How smoothly the camera follows (0-1, lower is smoother)
-    CAMERA_FOLLOW_ZOOM_TARGET: 1.5, // Target zoom level when following a planet (1.0 means actual size, >1 means closer)
+    CAMERA_FOLLOW_ZOOM_TARGET: 3.0, // Target zoom level when following a planet (increased for closer view)
 
     // Planet Counter
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000, // Update counter every 1000ms (1 second)
+
+    // Game Score
+    CONSTANT_SCORE_INTERVAL_MS: 100, // Gain points every 100ms
+    CONSTANT_SCORE_POINTS: 1, // Points gained constantly
+    ASTEROID_HIT_POINTS: 50, // Points gained per asteroid destroyed
+
+    // Asteroid Properties
+    ASTEROID_SPAWN_INTERVAL_MS: 500, // Spawn a new asteroid every 500ms
+    ASTEROID_MIN_RADIUS: 5,
+    ASTEROID_MAX_RADIUS: 15,
+    ASTEROID_MIN_SPEED: 0.5, // Pixels per frame (at zoom 1)
+    ASTEROID_MAX_SPEED: 2.0,
+    ASTEROID_SPAWN_DISTANCE_FROM_PLANET: 2000, // Distance from chosen planet to spawn
+    ASTEROID_OFFSCREEN_THRESHOLD: 3000, // Distance to remove off-screen asteroids
+    MAX_ASTEROIDS_ON_SCREEN: 50, // Max number of asteroids before slowing spawn
 };
 // --- END CONFIGURATION VARIABLES ---
 
@@ -70,6 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmPlanetButton = document.getElementById('confirm-planet-button');
     const planetListPanel = document.getElementById('planet-list-panel');
     const planetList = document.getElementById('planet-list');
+    const scorePanel = document.getElementById('score-panel'); // NEW: Score panel
+    const currentScoreDisplay = document.getElementById('current-score'); // NEW: Score display span
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -91,8 +108,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDragging = false;
     let lastMouseX, lastMouseY;
     let selectingStarterPlanet = false;
-    let gameActive = false;
+    let gameActive = false; // Controls overall interaction after setup
+
+    // Game State Variables
+    let score = 0; // NEW: Player's score
+    let asteroids = []; // NEW: Array to hold active asteroids
+    let chosenStarterPlanet = null; // NEW: Stores the planet chosen by the player
+
+    // Interval IDs for clearing
     let planetCounterInterval = null;
+    let constantScoreInterval = null; // NEW: Interval for constant score gain
+    let asteroidSpawnInterval = null; // NEW: Interval for asteroid spawning
 
 
     playButton.addEventListener('click', () => {
@@ -100,28 +126,50 @@ document.addEventListener('DOMContentLoaded', () => {
         gameScreen.classList.add('active');
 
         initSolarSystem();
-        setInitialCameraZoom();
+        setInitialCameraZoom(); // Initial zoom to show whole system
 
+        // Reset game state on play
         camera.x = 0;
         camera.y = 0;
         camera.targetPlanet = null;
+        camera.activeListItem = null;
+        score = 0;
+        asteroids = [];
+        chosenStarterPlanet = null;
+        updateScoreDisplay(); // Reset score display
 
-        populatePlanetList();
+        populatePlanetList(); // Populates with 0s for counters
 
         animateSolarSystem();
 
-        selectingStarterPlanet = true;
-        starterPlanetPanel.classList.add('active');
-        planetListPanel.classList.add('active');
+        selectingStarterPlanet = true; // Enter selection phase
+        starterPlanetPanel.classList.add('active'); // Show "Choose planet" prompt
+        planetListPanel.classList.add('active'); // Show planet list
+        scorePanel.classList.add('active'); // NEW: Show score panel
         gameActive = true;
 
+        // Start counters
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
+
+        if (constantScoreInterval) clearInterval(constantScoreInterval);
+        constantScoreInterval = setInterval(() => {
+            score += CONFIG.CONSTANT_SCORE_POINTS;
+            updateScoreDisplay();
+        }, CONFIG.CONSTANT_SCORE_INTERVAL_MS);
     });
 
     confirmPlanetButton.addEventListener('click', () => {
         planetChosenPanel.classList.remove('active');
-        selectingStarterPlanet = false;
+        selectingStarterPlanet = false; // Exit selection mode
+        
+        // NEW: Focus camera on the chosen planet immediately and start following
+        camera.targetPlanet = chosenStarterPlanet;
+        camera.zoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Snap zoom to target level
+        
+        // Start asteroid spawning only after a planet is chosen
+        if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
+        asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -129,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
+        // Stop following a planet on manual zoom
         camera.targetPlanet = null;
         if (camera.activeListItem) {
             camera.activeListItem.classList.remove('active');
@@ -156,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
 
+        // Stop following a planet on manual pan attempt
         if (camera.targetPlanet) {
             camera.targetPlanet = null;
             if (camera.activeListItem) {
@@ -166,44 +216,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.button === 0) { // Left mouse button
             e.preventDefault();
-            let planetClicked = false;
+            let clickHandled = false;
 
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            const worldX = (mouseX - canvas.width / 2) / camera.zoom - camera.x;
+            const worldY = (mouseY - canvas.height / 2) / camera.zoom - camera.y;
+
+            // 1. Try to select a starter planet (if in selection phase)
             if (selectingStarterPlanet) {
-                const mouseX = e.clientX;
-                const mouseY = e.clientY;
-
-                const worldX = (mouseX - canvas.width / 2) / camera.zoom - camera.x;
-                const worldY = (mouseY - canvas.height / 2) / camera.zoom - camera.y;
-
                 for (let i = 0; i < currentPlanets.length; i++) {
                     const planet = currentPlanets[i];
-                    let planetX, planetY;
+                    let planetWorldX, planetWorldY;
                     if (planet.isElliptical) {
                         const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
                         const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-                        planetX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-                        planetY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+                        planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+                        planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
                     } else {
-                        planetX = Math.cos(planet.angle) * planet.orbitRadius;
-                        planetY = Math.sin(planet.angle) * planet.orbitRadius;
+                        planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
+                        planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
                     }
 
                     const distance = Math.sqrt(
-                        Math.pow(worldX - planetX, 2) +
-                        Math.pow(worldY - planetY, 2)
+                        Math.pow(worldX - planetWorldX, 2) +
+                        Math.pow(worldY - planetWorldY, 2)
                     );
 
                     if (distance < planet.radius) {
+                        chosenStarterPlanet = planet; // Store the chosen planet
                         starterPlanetPanel.classList.remove('active');
                         chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`;
                         planetChosenPanel.classList.add('active');
-                        planetClicked = true;
+                        clickHandled = true;
+                        break;
+                    }
+                }
+            } 
+            
+            // 2. If not selecting a starter planet, or if no planet was clicked, try to shoot an asteroid
+            if (!selectingStarterPlanet && !clickHandled && chosenStarterPlanet) { // Only shoot if game has started & planet chosen
+                for (let i = asteroids.length - 1; i >= 0; i--) { // Iterate backwards to safely remove
+                    const asteroid = asteroids[i];
+                    const distance = Math.sqrt(
+                        Math.pow(worldX - asteroid.x, 2) +
+                        Math.pow(worldY - asteroid.y, 2)
+                    );
+
+                    if (distance < asteroid.radius) {
+                        score += CONFIG.ASTEROID_HIT_POINTS; // Add points
+                        updateScoreDisplay(); // Update display
+                        asteroids.splice(i, 1); // Remove asteroid
+                        clickHandled = true;
                         break;
                     }
                 }
             }
 
-            if (!planetClicked) {
+            // 3. If nothing else was clicked, initiate drag
+            if (!clickHandled) {
                 isDragging = true;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
@@ -330,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const listItem = document.createElement('li');
             const planetNumberSpan = document.createElement('span');
             planetNumberSpan.classList.add('planet-number');
-            planetNumberSpan.textContent = `0s `;
+            planetNumberSpan.textContent = `0 `; // Removed 's'
 
             const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name}`);
 
@@ -348,6 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 camera.activeListItem = listItem;
 
                 camera.targetPlanet = planet;
+                // NEW: Immediately snap zoom to target when clicked in list
+                camera.zoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
             });
             planetList.appendChild(listItem);
         });
@@ -359,9 +432,60 @@ document.addEventListener('DOMContentLoaded', () => {
             if (planet.listItemRef) {
                 const counterSpan = planet.listItemRef.querySelector('.planet-number');
                 if (counterSpan) {
-                    counterSpan.textContent = `${planet.timeSurvived}s `;
+                    counterSpan.textContent = `${planet.timeSurvived} `; // Removed 's'
                 }
             }
+        });
+    }
+
+    // NEW: Function to update score display
+    function updateScoreDisplay() {
+        currentScoreDisplay.textContent = score;
+    }
+
+    // NEW: Function to spawn an asteroid
+    function spawnAsteroid() {
+        if (!chosenStarterPlanet || asteroids.length >= CONFIG.MAX_ASTEROIDS_ON_SCREEN) {
+            return; // Only spawn if a planet is chosen and max asteroids not reached
+        }
+
+        // Get the current position of the chosen planet
+        let planetCurrentX, planetCurrentY;
+        if (chosenStarterPlanet.isElliptical) {
+            const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
+            const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+            planetCurrentX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
+            planetCurrentY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
+        } else {
+            planetCurrentX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+            planetCurrentY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+        }
+
+        const asteroidRadius = Math.floor(Math.random() * (CONFIG.ASTEROID_MAX_RADIUS - CONFIG.ASTEROID_MIN_RADIUS + 1)) + CONFIG.ASTEROID_MIN_RADIUS;
+        const asteroidSpeed = Math.random() * (CONFIG.ASTEROID_MAX_SPEED - CONFIG.ASTEROID_MIN_SPEED) + CONFIG.ASTEROID_MIN_SPEED;
+
+        // Spawn point: random angle at a set distance from the planet
+        const spawnAngle = Math.random() * Math.PI * 2;
+        const spawnX = planetCurrentX + Math.cos(spawnAngle) * CONFIG.ASTEROID_SPAWN_DISTANCE_FROM_PLANET;
+        const spawnY = planetCurrentY + Math.sin(spawnAngle) * CONFIG.ASTEROID_SPAWN_DISTANCE_FROM_PLANET;
+
+        // Direction of movement: towards or slightly away/tangent to the planet
+        // For simplicity, let's make them move towards the planet's general vicinity
+        // or just a random direction from their spawn point.
+        // Let's make them move towards the center of the solar system, for now.
+        // Or, a random direction
+        const directionAngle = Math.random() * Math.PI * 2;
+        const velocityX = Math.cos(directionAngle) * asteroidSpeed;
+        const velocityY = Math.sin(directionAngle) * asteroidSpeed;
+
+
+        asteroids.push({
+            x: spawnX,
+            y: spawnY,
+            radius: asteroidRadius,
+            color: `hsl(${Math.random() * 360}, 20%, 40%)`, // Greyish random colors
+            velocityX: velocityX,
+            velocityY: velocityY
         });
     }
 
@@ -389,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
 
+        // Camera follow logic
         if (camera.targetPlanet) {
             let targetX, targetY;
             if (camera.targetPlanet.isElliptical) {
@@ -398,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetY = unrotatedX * Math.sin(camera.targetPlanet.rotationAngle) + unrotatedY * Math.cos(camera.targetPlanet.rotationAngle);
             } else {
                 targetX = Math.cos(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
-                targetY = Math.sin(camera.targetPlanet.angle) * planet.orbitRadius; // Fixed: Used `planet.orbitRadius` instead of `camera.targetPlanet.orbitRadius`
+                targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
             }
 
             camera.x = camera.x + ((-targetX / camera.zoom) - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
@@ -414,6 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const systemCenterX = 0;
         const systemCenterY = 0;
 
+        // Draw the Star
         ctx.beginPath();
         ctx.arc(systemCenterX, systemCenterY, currentStarRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'yellow';
@@ -422,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
         ctx.shadowBlur = 0;
 
+        // Draw and update planets
         currentPlanets.forEach(planet => {
             ctx.beginPath();
             if (planet.isElliptical) {
@@ -461,6 +588,26 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = planet.color;
             ctx.fill();
         });
+
+        // NEW: Draw and update asteroids
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+            const asteroid = asteroids[i];
+            asteroid.x += asteroid.velocityX;
+            asteroid.y += asteroid.velocityY;
+
+            // Remove asteroids if they fly too far off-screen from the current view center
+            const distFromCenter = Math.sqrt(Math.pow(asteroid.x - systemCenterX, 2) + Math.pow(asteroid.y - systemCenterY, 2));
+            if (distFromCenter > (Math.min(canvas.width, canvas.height) / camera.zoom) + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
+                asteroids.splice(i, 1);
+                continue; // Skip drawing this one
+            }
+
+            ctx.beginPath();
+            ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
+            ctx.fillStyle = asteroid.color;
+            ctx.fill();
+        }
+
 
         ctx.restore();
         animationFrameId = requestAnimationFrame(animateSolarSystem);
