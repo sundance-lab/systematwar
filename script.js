@@ -51,6 +51,9 @@ const CONFIG = {
     // Camera Tracking
     CAMERA_FOLLOW_LERP_FACTOR: 0.05, // How smoothly the camera follows (0-1, lower is smoother)
     CAMERA_FOLLOW_ZOOM_TARGET: 1.5, // Target zoom level when following a planet (1.0 means actual size, >1 means closer)
+
+    // Planet Counter
+    PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000, // Update counter every 1000ms (1 second)
 };
 // --- END CONFIGURATION VARIABLES ---
 
@@ -65,8 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const planetChosenPanel = document.getElementById('planet-chosen-panel');
     const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
     const confirmPlanetButton = document.getElementById('confirm-planet-button');
-    const planetListPanel = document.getElementById('planet-list-panel'); // New: Planet List Panel
-    const planetList = document.getElementById('planet-list');         // New: UL for planet list items
+    const planetListPanel = document.getElementById('planet-list-panel');
+    const planetList = document.getElementById('planet-list');
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -81,14 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
         zoom: CONFIG.CAMERA_INITIAL_ZOOM,
         scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
         dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
-        targetPlanet: null, // NEW: Stores the planet object to follow
-        activeListItem: null // NEW: Stores the currently active list item
+        targetPlanet: null,
+        activeListItem: null
     };
 
     let isDragging = false;
     let lastMouseX, lastMouseY;
     let selectingStarterPlanet = false;
-    let gameActive = false; // Controls overall interaction after setup
+    let gameActive = false;
+    let planetCounterInterval = null; // NEW: To store the setInterval ID
 
 
     playButton.addEventListener('click', () => {
@@ -100,23 +104,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         camera.x = 0;
         camera.y = 0;
-        camera.targetPlanet = null; // Ensure no planet is followed initially
+        camera.targetPlanet = null;
 
-        populatePlanetList(); // NEW: Populate the planet list
+        populatePlanetList();
 
         animateSolarSystem();
 
         selectingStarterPlanet = true;
         starterPlanetPanel.classList.add('active');
-        planetListPanel.classList.add('active'); // NEW: Show the planet list panel
+        planetListPanel.classList.add('active');
         gameActive = true;
+
+        // NEW: Start the planet counter
+        if (planetCounterInterval) clearInterval(planetCounterInterval); // Clear any old interval
+        planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
     });
 
     confirmPlanetButton.addEventListener('click', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false;
-        // Optionally, focus camera on the chosen planet here, or just let user explore
-        // camera.targetPlanet = /* The planet that was chosen */;
+        // Optionally, reset camera target after choosing a planet, or set to the chosen planet
+        // camera.targetPlanet = null; // To immediately stop following
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -124,13 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        // If user manually zooms, stop following a planet
+        // Stop following a planet on manual zoom
         camera.targetPlanet = null;
         if (camera.activeListItem) {
             camera.activeListItem.classList.remove('active');
             camera.activeListItem = null;
         }
-
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -153,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
 
-        // If user manually pans, stop following a planet
+        // Stop following a planet on manual pan attempt
         if (camera.targetPlanet) {
             camera.targetPlanet = null;
             if (camera.activeListItem) {
@@ -310,7 +317,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 semiMajorAxis: semiMajorAxis,
                 semiMinorAxis: semiMinorAxis,
                 eccentricity: eccentricity,
-                rotationAngle: rotationAngle
+                rotationAngle: rotationAngle,
+                timeSurvived: 0, // NEW: Initialize planet counter
+                listItemRef: null // NEW: Placeholder for reference to its list item element
             });
 
             previousOrbitRadius = actualOrbitRadius;
@@ -325,8 +334,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentPlanets.forEach((planet, index) => {
             const listItem = document.createElement('li');
-            listItem.textContent = `P${index + 1}: ${planet.name}`;
+            const planetNumberSpan = document.createElement('span');
+            planetNumberSpan.classList.add('planet-number'); // Optional: for specific styling if needed
+            planetNumberSpan.textContent = `0s `; // Initial counter display
+
+            const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name}`);
+
+            listItem.appendChild(planetNumberSpan);
+            listItem.appendChild(planetNameText);
             listItem.dataset.planetIndex = index; // Store index for easy lookup
+
+            // Store reference to the list item element directly in the planet object
+            planet.listItemRef = listItem;
 
             listItem.addEventListener('click', () => {
                 // Remove active class from previously active item
@@ -341,6 +360,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 camera.targetPlanet = planet;
             });
             planetList.appendChild(listItem);
+        });
+    }
+
+    // NEW: Function to update planet counters every second
+    function updatePlanetCounters() {
+        currentPlanets.forEach((planet, index) => {
+            planet.timeSurvived++;
+            if (planet.listItemRef) { // Ensure the list item exists
+                // Update only the counter part of the text content
+                const counterSpan = planet.listItemRef.querySelector('.planet-number');
+                if (counterSpan) {
+                    counterSpan.textContent = `${planet.timeSurvived}s `;
+                }
+            }
         });
     }
 
@@ -368,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        // NEW: Camera follow logic
+        // Camera follow logic
         if (camera.targetPlanet) {
             let targetX, targetY;
             // Get the current world position of the target planet
@@ -383,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Smoothly move camera towards the target planet's current position
-            // Camera position is opposite of world position relative to screen center
             camera.x = camera.x + ((-targetX / camera.zoom) - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
             camera.y = camera.y + ((-targetY / camera.zoom) - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
 
@@ -456,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         if (gameActive) {
             cancelAnimationFrame(animationFrameId);
-            setInitialCameraZoom(); // Recalculate zoom to fit new screen size
+            setInitialCameraZoom();
             animateSolarSystem();
         }
     });
