@@ -31,6 +31,18 @@
         <div id="player-units-panel" class="in-game-panel">
             <p>Your Units: <span id="player-unit-count">0</span></p>
         </div>
+
+        <div id="game-modal-backdrop" class="game-modal-backdrop">
+            <div id="game-modal" class="in-game-panel game-modal">
+                <p id="modal-message"></p>
+                <div id="modal-input-area">
+                    <input type="number" id="modal-input" min="1" value="1">
+                    <button id="modal-input-confirm">OK</button>
+                </div>
+                <button id="modal-confirm">OK</button>
+            </div>
+        </div>
+
     </div>
 
     <script src="script.js"></script>
