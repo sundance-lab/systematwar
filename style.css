@@ -141,22 +141,3 @@ body {
     font-weight: normal;
     margin-right: 5px;
 }
-
-/* NEW: Score Panel Styling */
-#score-panel {
-    top: 20px; /* Top of the screen */
-    left: 20px; /* Left of the screen */
-    right: auto;
-    bottom: auto;
-    transform: none;
-    padding: 10px 15px;
-    font-size: 1.4em;
-    min-width: 120px; /* Ensure enough space for score */
-    text-align: left;
-}
-
-#score-panel #current-score {
-    font-weight: bold;
-    color: #00ff00;
-    text-shadow: 0 0 5px #0f0;
-}
