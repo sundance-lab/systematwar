@@ -184,7 +184,12 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 200; /* Above all other panels */
-    display: flex; /* Hidden by default */
+    display: none; /* Hidden by default */
+}
+
+/* ADDED/CONFIRMED: Make backdrop visible when active */
+.game-modal-backdrop.active {
+    display: flex;
 }
 
 .game-modal {
@@ -204,8 +209,9 @@ body {
     line-height: 1.4;
 }
 
+/* ADDED/CONFIRMED: Hide input area by default, controlled by JS */
 .game-modal #modal-input-area {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 10px;
 }
