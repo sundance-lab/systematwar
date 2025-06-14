@@ -16,7 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         x: 0,
         y: 0,
         zoom: 0.1,
-        scaleFactor: 1.1
+        scaleFactor: 1.1,
+        dragSensitivity: 0.8 // Drag speed: smaller number means slower drag
     };
 
     let isDragging = false;
@@ -54,11 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        if (e.button === 0) { // Left mouse button (0 for left, 1 for middle, 2 for right)
+        if (e.button === 0) { // Left mouse button
             e.preventDefault();
             isDragging = true;
             lastMouseX = e.clientX;
-            lastMouseY = e.clientY; // Corrected typo here
+            lastMouseY = e.clientY;
             canvas.style.cursor = 'grabbing';
         }
     });
@@ -68,11 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
-            camera.x += dx / camera.zoom;
-            camera.y += dy / camera.zoom;
+            // Apply drag sensitivity
+            camera.x += (dx / camera.zoom) * camera.dragSensitivity;
+            camera.y += (dy / camera.zoom) * camera.dragSensitivity;
 
             lastMouseX = e.clientX;
-            lastMouseY = e.clientY; // Corrected typo here
+            lastMouseY = e.clientY;
         }
     });
 
@@ -101,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
         const minOverallOrbitRadius = currentStarRadius + 80;
-        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 5;
+        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 10; // Significantly increased max orbit distance
 
         currentPlanets = [];
         let previousOrbitRadius = minOverallOrbitRadius;
@@ -109,18 +111,27 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < numPlanets; i++) {
             const planetRadius = Math.floor(Math.random() * 10) + 5;
 
-            const minClearance = 30;
-            const minSpacingBetweenOrbits = 150;
-            const maxSpacingBetweenOrbits = 800;
+            // Allow orbit lines to overlap, but ensure planets don't collide
+            const minPlanetClearance = 10; // Minimum pixel space between planet bodies
+            // This ensures the current planet's orbit is at least past the previous planet's *body*
+            const minimumOrbitDistanceFromPreviousPlanet = previousOrbitRadius +
+                                                           (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
+                                                           planetRadius + minPlanetClearance;
+
+
+            // Increase distance between orbits a lot lot more.
+            const minSpacingBetweenOrbits = 300; // Much larger minimum spacing
+            const maxSpacingBetweenOrbits = 1500; // Significantly larger maximum spacing
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
-            const requiredMinOrbitForNoOverlap = previousOrbitRadius + (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) + planetRadius + minClearance;
-
-            let actualOrbitRadius = Math.max(potentialOrbitRadius, requiredMinOrbitForNoOverlap);
+            // The 'actualOrbitRadius' will be at least the minimum to prevent planet collision
+            // and try to follow the larger random spacing.
+            let actualOrbitRadius = Math.max(potentialOrbitRadius, minimumOrbitDistanceFromPreviousPlanet);
 
             if (actualOrbitRadius > maxOverallOrbitRadius) {
-                 if (requiredMinOrbitForNoOverlap > maxOverallOrbitRadius) {
+                 // If even the minimum required distance for no collision pushes it too far, break.
+                 if (minimumOrbitDistanceFromPreviousPlanet > maxOverallOrbitRadius) {
                      break;
                  }
                  actualOrbitRadius = maxOverallOrbitRadius;
