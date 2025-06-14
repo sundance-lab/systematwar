@@ -131,11 +131,7 @@ body {
     font-weight: bold;
 }
 
-#planet-list li .planet-number {
-    color: rgba(0, 255, 0, 0.7);
-    font-weight: normal;
-    margin-right: 5px;
-}
+/* Removed the .planet-number styling as the element is removed */
 
 /* Player Units Panel Styling */
 #player-units-panel {
@@ -150,7 +146,8 @@ body {
     text-align: left;
 }
 
-#player-units-panel #player-unit-count {
+#player-units-panel #player-unit-count,
+#player-units-panel #player-energy-count { /* Added energy count to bold/color style */
     font-weight: bold;
     color: #00ff00;
     text-shadow: 0 0 5px #0f0;
@@ -187,7 +184,7 @@ body {
     display: none; /* Hidden by default */
 }
 
-/* ADDED/CONFIRMED: Make backdrop visible when active */
+/* Make backdrop visible when active */
 .game-modal-backdrop.active {
     display: flex;
 }
@@ -209,7 +206,7 @@ body {
     line-height: 1.4;
 }
 
-/* ADDED/CONFIRMED: Hide input area by default, controlled by JS */
+/* Hide input area by default, controlled by JS */
 .game-modal #modal-input-area {
     display: none;
     flex-direction: column;
