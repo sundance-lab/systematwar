@@ -184,7 +184,7 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 200; /* Above all other panels */
-    display: none; /* Hidden by default */
+    display: flex; /* Hidden by default */
 }
 
 .game-modal {
