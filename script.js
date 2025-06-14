@@ -12,12 +12,12 @@ const CONFIG = {
 
     // Star Properties
     ORIGINAL_STAR_RADIUS: 20, // Base reference for scaling
-    MIN_STAR_MULTIPLIER: 200,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
-    MAX_STAR_MULTIPLIER: 400,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
+    MIN_STAR_MULTIPLIER: 75,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
+    MAX_STAR_MULTIPLIER: 150,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
 
     // Planet Properties
-    PLANET_RADIUS_MIN_BASE: 20,
-    PLANET_RADIUS_MAX_BASE: 60,
+    PLANET_RADIUS_MIN_BASE: 5,
+    PLANET_RADIUS_MAX_BASE: 14,
     PLANET_RADIUS_SCALE_FACTOR: 10, // Planets are (5-14) * 10 = 50-140px
     MIN_PLANETS: 6, // Minimum number of planets to spawn
     MAX_PLANETS: 12, // Maximum number of planets to spawn
@@ -27,14 +27,14 @@ const CONFIG = {
     STAR_ORBIT_MULTIPLIER: 50,     // Max orbit can be STAR_ORBIT_MULTIPLIER * currentStarRadius
     SCREEN_ORBIT_MULTIPLIER: 10,   // Max orbit can be SCREEN_ORBIT_MULTIPLIER * min(canvas.width, canvas.height)
 
-    MIN_SPACING_BETWEEN_ORBITS: 3000,  // Min random gap between orbits
-    MAX_SPACING_BETWEEN_ORBITS: 10000, // Max random gap between orbits
+    MIN_SPACING_BETWEEN_ORBITS: 500,  // Min random gap between orbits
+    MAX_SPACING_BETWEEN_ORBITS: 3000, // Max random gap between orbits
     MIN_PLANET_CLEARANCE: 10,         // Min pixel space between actual planet bodies on different orbits
 
     ORBIT_LINE_WIDTH: 0.25, // Base width of orbit lines
 
     MIN_ORBIT_SPEED: 0.0001,
-    MAX_ORBIT_SPEED: 0.001,
+    MAX_ORBIT_SPEED: 0.003,
 
     ELLIPTICAL_ORBIT_CHANCE: 0.15, // 15% chance for elliptical orbit
     ELLIPSE_ECCENTRICITY_MIN: 0.1,
@@ -47,6 +47,10 @@ const CONFIG = {
     CAMERA_MIN_ZOOM: 0.0001, // Max zoom out (can go very far)
     CAMERA_MAX_ZOOM: 50,     // Max zoom in
     INITIAL_VIEW_PADDING_FACTOR: 1.2, // Padding for initial zoom calculation
+
+    // Camera Tracking
+    CAMERA_FOLLOW_LERP_FACTOR: 0.05, // How smoothly the camera follows (0-1, lower is smoother)
+    CAMERA_FOLLOW_ZOOM_TARGET: 1.5, // Target zoom level when following a planet (1.0 means actual size, >1 means closer)
 };
 // --- END CONFIGURATION VARIABLES ---
 
@@ -61,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const planetChosenPanel = document.getElementById('planet-chosen-panel');
     const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
     const confirmPlanetButton = document.getElementById('confirm-planet-button');
+    const planetListPanel = document.getElementById('planet-list-panel'); // New: Planet List Panel
+    const planetList = document.getElementById('planet-list');         // New: UL for planet list items
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -72,9 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const camera = {
         x: 0,
         y: 0,
-        zoom: CONFIG.CAMERA_INITIAL_ZOOM, // Use config
-        scaleFactor: CONFIG.CAMERA_SCALE_FACTOR, // Use config
-        dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY // Use config
+        zoom: CONFIG.CAMERA_INITIAL_ZOOM,
+        scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
+        dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
+        targetPlanet: null, // NEW: Stores the planet object to follow
+        activeListItem: null // NEW: Stores the currently active list item
     };
 
     let isDragging = false;
@@ -87,28 +95,42 @@ document.addEventListener('DOMContentLoaded', () => {
         titleScreen.classList.remove('active');
         gameScreen.classList.add('active');
 
-        initSolarSystem(); // Initialize solar system first to get star and planet data
-        setInitialCameraZoom(); // Then calculate initial zoom based on generated system
+        initSolarSystem();
+        setInitialCameraZoom();
 
-        camera.x = 0; // Reset camera position to center (0,0) of the world
+        camera.x = 0;
         camera.y = 0;
+        camera.targetPlanet = null; // Ensure no planet is followed initially
+
+        populatePlanetList(); // NEW: Populate the planet list
 
         animateSolarSystem();
 
         selectingStarterPlanet = true;
-        starterPlanetPanel.classList.add('active'); // Show in-game panel
-        gameActive = true; // Game interactions now allowed
+        starterPlanetPanel.classList.add('active');
+        planetListPanel.classList.add('active'); // NEW: Show the planet list panel
+        gameActive = true;
     });
 
     confirmPlanetButton.addEventListener('click', () => {
-        planetChosenPanel.classList.remove('active'); // Hide confirmation panel
-        selectingStarterPlanet = false; // End selection phase for good
+        planetChosenPanel.classList.remove('active');
+        selectingStarterPlanet = false;
+        // Optionally, focus camera on the chosen planet here, or just let user explore
+        // camera.targetPlanet = /* The planet that was chosen */;
     });
 
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive) return; // Allow zoom only if game is active
+        if (!gameActive) return;
 
         e.preventDefault();
+
+        // If user manually zooms, stop following a planet
+        camera.targetPlanet = null;
+        if (camera.activeListItem) {
+            camera.activeListItem.classList.remove('active');
+            camera.activeListItem = null;
+        }
+
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -129,13 +151,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        if (!gameActive) return; // Allow clicks only if game is active
+        if (!gameActive) return;
+
+        // If user manually pans, stop following a planet
+        if (camera.targetPlanet) {
+            camera.targetPlanet = null;
+            if (camera.activeListItem) {
+                camera.activeListItem.classList.remove('active');
+                camera.activeListItem = null;
+            }
+        }
 
         if (e.button === 0) { // Left mouse button
-            e.preventDefault(); // Prevent default browser drag for images, etc.
+            e.preventDefault();
             let planetClicked = false;
 
-            // Handle planet selection if in selecting mode
             if (selectingStarterPlanet) {
                 const mouseX = e.clientX;
                 const mouseY = e.clientY;
@@ -166,13 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         chosenPlanetNameDisplay.textContent = `You chose ${planet.name}!`;
                         planetChosenPanel.classList.add('active');
                         planetClicked = true;
-                        break; // Stop checking
+                        break;
                     }
                 }
             }
 
-            // If a planet was NOT clicked OR if we're not in planet selection mode, allow dragging.
-            // This ensures dragging works on empty space even when the "choose planet" panel is up.
             if (!planetClicked) {
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -182,9 +210,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive) return; // Allow mousemove only if game is active
+        if (!gameActive) return;
 
-        if (isDragging) { // Dragging is now independent of selectingStarterPlanet state
+        if (isDragging) {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
@@ -197,15 +225,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive) return; // Allow mouseup only if game is active
+        if (!gameActive) return;
 
-        if (e.button === 0) { // Stop dragging regardless of selection state
+        if (e.button === 0) {
             isDragging = false;
         }
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive) return; // Allow mouseleave only if game is active
+        if (!gameActive) return;
         isDragging = false;
     });
 
@@ -291,6 +319,31 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlanets.sort((a, b) => a.orbitRadius - b.orbitRadius);
     }
 
+    // NEW: Function to populate the planet list UI
+    function populatePlanetList() {
+        planetList.innerHTML = ''; // Clear existing list items
+
+        currentPlanets.forEach((planet, index) => {
+            const listItem = document.createElement('li');
+            listItem.textContent = `P${index + 1}: ${planet.name}`;
+            listItem.dataset.planetIndex = index; // Store index for easy lookup
+
+            listItem.addEventListener('click', () => {
+                // Remove active class from previously active item
+                if (camera.activeListItem) {
+                    camera.activeListItem.classList.remove('active');
+                }
+                // Add active class to the clicked item
+                listItem.classList.add('active');
+                camera.activeListItem = listItem;
+
+                // Set target planet for camera to follow
+                camera.targetPlanet = planet;
+            });
+            planetList.appendChild(listItem);
+        });
+    }
+
     function setInitialCameraZoom() {
         let maxWorldExtent = currentStarRadius;
 
@@ -314,6 +367,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
+
+        // NEW: Camera follow logic
+        if (camera.targetPlanet) {
+            let targetX, targetY;
+            // Get the current world position of the target planet
+            if (camera.targetPlanet.isElliptical) {
+                const unrotatedX = camera.targetPlanet.semiMajorAxis * Math.cos(camera.targetPlanet.angle);
+                const unrotatedY = camera.targetPlanet.semiMinorAxis * Math.sin(camera.targetPlanet.angle);
+                targetX = unrotatedX * Math.cos(camera.targetPlanet.rotationAngle) - unrotatedY * Math.sin(camera.targetPlanet.rotationAngle);
+                targetY = unrotatedX * Math.sin(camera.targetPlanet.rotationAngle) + unrotatedY * Math.cos(camera.targetPlanet.rotationAngle);
+            } else {
+                targetX = Math.cos(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
+                targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
+            }
+
+            // Smoothly move camera towards the target planet's current position
+            // Camera position is opposite of world position relative to screen center
+            camera.x = camera.x + ((-targetX / camera.zoom) - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+            camera.y = camera.y + ((-targetY / camera.zoom) - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+
+            // Smoothly adjust zoom to target follow zoom
+            camera.zoom = camera.zoom + (CONFIG.CAMERA_FOLLOW_ZOOM_TARGET - camera.zoom) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+            camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM)); // Clamp
+        }
+
+
         ctx.scale(camera.zoom, camera.zoom);
         ctx.translate(camera.x, camera.y);
 
