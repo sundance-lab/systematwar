@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             isDragging = true;
             lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
+            lastMouseY = e.clientY; // Corrected typo here
             canvas.style.cursor = 'grabbing';
         }
     });
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.y += dy / camera.zoom;
 
             lastMouseX = e.clientX;
-            lastMouseY = e.clientX; // Fix: This should be e.clientY. Corrected below.
+            lastMouseY = e.clientY; // Corrected typo here
         }
     });
 
@@ -101,8 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
         const minOverallOrbitRadius = currentStarRadius + 80;
-        // Further increase possible distance between planets' orbits
-        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 5; // Much larger max orbit
+        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 5;
 
         currentPlanets = [];
         let previousOrbitRadius = minOverallOrbitRadius;
@@ -111,8 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const planetRadius = Math.floor(Math.random() * 10) + 5;
 
             const minClearance = 30;
-            const minSpacingBetweenOrbits = 150; // Further increased minimum spacing
-            const maxSpacingBetweenOrbits = 800; // Drastically increased maximum spacing
+            const minSpacingBetweenOrbits = 150;
+            const maxSpacingBetweenOrbits = 800;
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
@@ -133,34 +132,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const orbitSpeed = (minOrbitSpeed + Math.random() * (maxOrbitSpeed - minOrbitSpeed)) * (Math.random() > 0.5 ? 1 : -1);
 
-            // Elliptical Orbit Properties
-            const isElliptical = Math.random() < 0.15; // 15% chance for an elliptical orbit
+            const isElliptical = Math.random() < 0.15;
             let semiMajorAxis = actualOrbitRadius;
             let semiMinorAxis = actualOrbitRadius;
             let eccentricity = 0;
-            let rotationAngle = 0; // Rotation of the ellipse itself
+            let rotationAngle = 0;
 
             if (isElliptical) {
-                eccentricity = Math.random() * 0.7 + 0.1; // Eccentricity between 0.1 and 0.8
-                // semiMajorAxis is the actualOrbitRadius if it's the furthest point (aphelion)
-                // or average distance. Let's make actualOrbitRadius the average distance.
-                // a = actualOrbitRadius / (1 - e*cos(angle))
-                // A simpler way: just make semiMajorAxis the actualOrbitRadius
-                // and derive semiMinorAxis.
+                eccentricity = Math.random() * 0.7 + 0.1;
                 semiMinorAxis = semiMajorAxis * Math.sqrt(1 - eccentricity * eccentricity);
-                rotationAngle = Math.random() * Math.PI * 2; // Random orientation
+                rotationAngle = Math.random() * Math.PI * 2;
             }
 
             currentPlanets.push({
                 radius: planetRadius,
-                orbitRadius: actualOrbitRadius, // Used as reference for circular, or semiMajorAxis for elliptical
+                orbitRadius: actualOrbitRadius,
                 angle: initialAngle,
                 speed: orbitSpeed,
                 color: `hsl(${Math.random() * 360}, 70%, 50%)`,
                 isElliptical: isElliptical,
                 semiMajorAxis: semiMajorAxis,
                 semiMinorAxis: semiMinorAxis,
-                eccentricity: eccentricity, // Store for potential future use (though not used directly in current drawing of ellipse)
+                eccentricity: eccentricity,
                 rotationAngle: rotationAngle
             });
 
@@ -190,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.shadowBlur = 0;
 
         currentPlanets.forEach(planet => {
-            // Draw orbit path
             ctx.beginPath();
             if (planet.isElliptical) {
                 ctx.ellipse(
@@ -209,16 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.stroke();
 
-            // Update and draw planet
             planet.angle += planet.speed;
             let x, y;
 
             if (planet.isElliptical) {
-                // Calculate position on ellipse
-                // The standard elliptical parametric equations:
-                // x = a * cos(theta)
-                // y = b * sin(theta)
-                // Then rotate by rotationAngle
                 const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
                 const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
 
