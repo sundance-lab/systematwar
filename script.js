@@ -113,8 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game State Variables
     let score = 0; // Player's personal score
-    let asteroids = [];
-    let chosenStarterPlanet = null;
+    let asteroids = []; // Array to hold active asteroids
+    let chosenStarterPlanet = null; // Stores the planet chosen by the player
 
     // Interval IDs for clearing
     let planetCounterInterval = null;
@@ -164,22 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false; // Exit selection mode
         
-        // NEW CAMERA FIX: Set camera's center instantly to the chosen planet's current world position
-        // and snap zoom. The LERP will then handle smooth follow.
-        let planetCurrentX, planetCurrentY;
-        if (chosenStarterPlanet.isElliptical) {
-            const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-            const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
-            planetCurrentX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
-            planetCurrentY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
-        } else {
-            planetCurrentX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-            planetCurrentY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-        }
-        camera.x = planetCurrentX; // Camera now looks at this world X
-        camera.y = planetCurrentY; // Camera now looks at this world Y
-        camera.zoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Snap zoom to target level
-        camera.targetPlanet = chosenStarterPlanet; // Start following it smoothly
+        // --- NEW CAMERA FIX: Don't snap instantly, let LERP handle smooth transition ---
+        camera.targetPlanet = chosenStarterPlanet; // Start following it
+        // The camera's x, y, and zoom will smoothly move from their current state
+        // to center on the chosen planet with the target zoom level.
 
         // Start asteroid spawning only after a planet is chosen
         if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
@@ -441,22 +429,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
 
+                // NEW CAMERA FIX: On list click, just set target and let LERP handle transition
                 camera.targetPlanet = planet;
-                // NEW CAMERA FIX: On list click, also snap camera position to target planet
-                // and snap zoom level.
-                let planetCurrentX, planetCurrentY;
-                if (planet.isElliptical) {
-                    const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-                    const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-                    planetCurrentX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-                    planetCurrentY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-                } else {
-                    planetCurrentX = Math.cos(planet.angle) * planet.orbitRadius;
-                    planetCurrentY = Math.sin(planet.angle) * planet.orbitRadius;
-                }
-                camera.x = planetCurrentX;
-                camera.y = planetCurrentY;
-                camera.zoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
+                // No immediate snap of camera.x, y, zoom here. LERP will handle the move.
             });
             planetList.appendChild(listItem);
         });
@@ -629,7 +604,6 @@ document.addEventListener('DOMContentLoaded', () => {
             asteroid.y += asteroid.velocityY;
 
             // Remove asteroids if they fly too far off-screen from the camera's center view
-            // Calculate distance from current camera center to asteroid
             const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
             const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
 
@@ -654,16 +628,10 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         if (gameActive) {
             cancelAnimationFrame(animationFrameId);
-            // Re-calculate initial zoom if not following, or if following, snap back to target zoom.
+            // On resize, if not following, re-frame the whole system.
+            // If following, just let it continue following; lerp will naturally adjust to new canvas size.
             if (!camera.targetPlanet) {
                 setInitialCameraZoom();
-            } else {
-                // If following, just update target zoom for new canvas size, and lerp will adjust
-                camera.zoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
-                // Also recenter camera x,y if its target is null, or if following target
-                // For following, it naturally re-adjusts with lerp. For fixed view, need re-center.
-                // Let's assume on resize, if not following, we want to re-frame the whole system.
-                // If following, just let it continue following relative to target.
             }
             animateSolarSystem();
         }
