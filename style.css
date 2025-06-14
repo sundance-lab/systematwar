@@ -71,7 +71,6 @@ body {
     display: block;
 }
 
-/* Specific positioning for starter planet prompt and chosen planet confirm */
 #starter-planet-panel,
 #planet-chosen-panel {
     top: 20px;
@@ -79,25 +78,27 @@ body {
     transform: translateX(-50%); /* Center horizontally */
 }
 
-/* NEW: Planet List Panel specific styling */
+/* Updated: Planet List Panel specific styling */
 #planet-list-panel {
-    top: 20px;
-    right: 20px; /* Position on the right */
-    left: auto; /* Override left: 50% from .in-game-panel */
-    transform: none; /* Override translateX(-50%) from .in-game-panel */
-    width: 250px; /* Fixed width */
-    height: calc(100vh - 40px); /* Fill most of height, leave 20px top/bottom margin */
-    overflow-y: auto; /* Make it scrollable if content overflows */
-    padding: 10px; /* Adjust padding for list content */
-    box-sizing: border-box; /* Include padding in width/height */
-    text-align: left; /* Align text within panel */
+    top: auto; /* Remove top constraint */
+    bottom: 20px; /* Pin to bottom */
+    right: 20px; /* Pin to right */
+    left: auto;
+    transform: none;
+    width: 180px; /* Decreased width a lot */
+    height: 300px; /* Decreased height a lot */
+    overflow-y: auto;
+    padding: 10px;
+    box-sizing: border-box;
+    text-align: left;
+    display: none; /* Hidden by default */
 }
 
 #planet-list-panel h2 {
     color: #00ff00;
     margin-top: 0;
     margin-bottom: 15px;
-    font-size: 1.5em;
+    font-size: 1.3em; /* Slightly smaller heading */
     border-bottom: 1px solid rgba(0, 255, 0, 0.3);
     padding-bottom: 5px;
 }
@@ -109,12 +110,15 @@ body {
 }
 
 #planet-list li {
-    padding: 8px 5px;
+    padding: 6px 5px; /* Slightly smaller padding */
     border-bottom: 1px dashed rgba(0, 255, 0, 0.1);
     cursor: pointer;
     transition: background-color 0.2s ease, color 0.2s ease;
-    font-size: 1.1em;
-    user-select: none; /* Prevent text selection on click */
+    font-size: 0.95em; /* Slightly smaller font */
+    user-select: none;
+    white-space: nowrap; /* Prevent name from wrapping */
+    overflow: hidden; /* Hide overflowed text */
+    text-overflow: ellipsis; /* Add ellipsis for overflowed text */
 }
 
 #planet-list li:last-child {
@@ -126,7 +130,7 @@ body {
     color: #fff;
 }
 
-#planet-list li.active { /* For highlighting the currently followed planet */
+#planet-list li.active {
     background-color: rgba(0, 255, 0, 0.3);
     color: #fff;
     font-weight: bold;
