@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const camera = {
         x: 0,
         y: 0,
-        zoom: 1, // Will be set dynamically
+        zoom: 1, // Will be set dynamically to fit system
         scaleFactor: 1.1,
         dragSensitivity: 0.8
     };
@@ -43,26 +43,22 @@ document.addEventListener('DOMContentLoaded', () => {
         titleScreen.classList.remove('active');
         gameScreen.classList.add('active');
 
-        // Initialize solar system first to get star and planet data
-        initSolarSystem();
+        initSolarSystem(); // Initialize solar system first to get star and planet data
+        setInitialCameraZoom(); // Then calculate initial zoom based on generated system
 
-        // Then calculate initial zoom based on generated system
-        setInitialCameraZoom();
-
-        // Reset camera position to center (0,0) of the world
-        camera.x = 0;
+        camera.x = 0; // Reset camera position to center (0,0) of the world
         camera.y = 0;
 
         animateSolarSystem();
 
         selectingStarterPlanet = true;
-        starterPlanetPanel.classList.add('active');
-        gameActive = true;
+        starterPlanetPanel.classList.add('active'); // Show in-game panel
+        gameActive = true; // Game interactions now allowed
     });
 
     confirmPlanetButton.addEventListener('click', () => {
-        planetChosenPanel.classList.remove('active');
-        selectingStarterPlanet = false;
+        planetChosenPanel.classList.remove('active'); // Hide confirmation panel
+        selectingStarterPlanet = false; // End selection phase for good
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -82,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.zoom /= camera.scaleFactor;
         }
 
-        camera.zoom = Math.max(0.00001, Math.min(camera.zoom, 50)); // Adjusted min zoom further
+        camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50)); // Allow very far zoom out
 
         camera.x = -worldXAtMouse + (mouseX - canvas.width / 2) / camera.zoom;
         camera.y = -worldYAtMouse + (mouseY - canvas.height / 2) / camera.zoom;
@@ -165,19 +161,21 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const originalStarRadius = 20;
-        // Sun size: min 60,000 to max 600,000
-        const minStarRadius = originalStarRadius * 3000;
-        const maxStarRadius = originalStarRadius * 30000;
+        // Re-calibrated sun size for better visibility of planets
+        // Target max star radius around 500-1000px, which is 25x to 50x original.
+        const minStarRadius = originalStarRadius * 20; // 400px
+        const maxStarRadius = originalStarRadius * 50;  // 1000px
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
+        // No explicit cap needed here as initial zoom handles fitting it.
 
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
-        const minOverallOrbitRadius = currentStarRadius + 80;
-        // Max orbit based on a multiplier of the star's radius for truly vast systems.
-        // Also ensure it's at least screen-based if star is small.
-        const starOrbitMultiplier = 30; // Planets can go up to 30x the star's radius away
-        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 20;
+        const minOverallOrbitRadius = currentStarRadius + 80; // Still start planets a bit away from star
+        // Max orbit based on a reasonable multiplier of the star's radius.
+        // This ensures planets are not too far away that they're hard to spot relative to the sun.
+        const starOrbitMultiplier = 15; // Planets can go up to 15x the star's radius away
+        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 2; // Ensure enough space on typical screens
 
         const maxOverallOrbitRadius = Math.max(screenOrbitMultiplier, currentStarRadius * starOrbitMultiplier);
 
@@ -188,15 +186,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let previousOrbitRadius = minOverallOrbitRadius;
 
         for (let i = 0; i < numPlanets; i++) {
+            // Planet size remains 50-140px, which should be visible against 400-1000px suns.
             const planetRadius = (Math.floor(Math.random() * 10) + 5) * 10;
 
-            const minPlanetClearance = 10;
+            const minPlanetClearance = 10; // Minimum space between actual planet bodies
             const minimumOrbitDistanceFromPreviousPlanet = previousOrbitRadius +
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
 
-            const minSpacingBetweenOrbits = 1500;
-            const maxSpacingBetweenOrbits = 7500;
+            // Keep large orbit spacing for spread out feel
+            const minSpacingBetweenOrbits = 300;
+            const maxSpacingBetweenOrbits = 1500;
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (actualOrbitRadius > maxOverallOrbitRadius) {
                  if (minimumOrbitDistanceFromPreviousPlanet > maxOverallOrbitRadius) {
-                     break; // Can't place this planet without violating max bounds or overlap.
+                     break;
                  }
                  actualOrbitRadius = maxOverallOrbitRadius;
             }
@@ -247,31 +247,22 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlanets.sort((a, b) => a.orbitRadius - b.orbitRadius);
     }
 
-    // New function to calculate initial zoom
     function setInitialCameraZoom() {
-        // Find the maximum extent of the solar system (farthest orbit or star radius)
-        let maxWorldExtent = currentStarRadius; // Start with the star's radius
+        let maxWorldExtent = currentStarRadius;
 
         if (currentPlanets.length > 0) {
-            // Get the orbit radius of the outermost planet
-            const outermostPlanetOrbit = currentPlanets[currentPlanets.length - 1].orbitRadius;
-            // The max extent needs to cover the outermost orbit plus its radius
-            maxWorldExtent = Math.max(maxWorldExtent, outermostPlanetOrbit + currentPlanets[currentPlanets.length - 1].radius);
-            // For elliptical, it's semiMajorAxis + radius
-            if (currentPlanets[currentPlanets.length - 1].isElliptical) {
-                 maxWorldExtent = Math.max(maxWorldExtent, currentPlanets[currentPlanets.length - 1].semiMajorAxis + currentPlanets[currentPlanets.length - 1].radius);
-            }
+            const outermostPlanet = currentPlanets[currentPlanets.length - 1];
+            // Ensure extent covers the farthest point of elliptical or circular orbit + planet radius
+            const outermostDistance = outermostPlanet.isElliptical ? outermostPlanet.semiMajorAxis : outermostPlanet.orbitRadius;
+            maxWorldExtent = Math.max(maxWorldExtent, outermostDistance + outermostPlanet.radius);
         }
 
-        // Add some padding so the system doesn't perfectly fill the screen
         maxWorldExtent *= 1.2; // 20% padding
 
-        // Calculate required zoom to fit this extent into the smaller canvas dimension
-        const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2); // *2 because extent is radius, we need diameter
+        const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2); // *2 because extent is radius
 
         camera.zoom = requiredZoom;
-        // Ensure zoom is within practical limits, but allow it to be very small
-        camera.zoom = Math.max(0.00001, Math.min(camera.zoom, 50));
+        camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50));
     }
 
 
@@ -341,11 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        // If the game is already active, re-calculate zoom to fit new screen size
         if (gameActive) {
-            cancelAnimationFrame(animationFrameId); // Stop old loop
-            setInitialCameraZoom(); // Recalculate based on new canvas size
-            animateSolarSystem(); // Restart animation
+            cancelAnimationFrame(animationFrameId);
+            setInitialCameraZoom(); // Recalculate zoom to fit new screen size
+            animateSolarSystem();
         }
     });
 
