@@ -161,21 +161,19 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const originalStarRadius = 20;
-        // Re-calibrated sun size for better visibility of planets
-        // Target max star radius around 500-1000px, which is 25x to 50x original.
-        const minStarRadius = originalStarRadius * 20; // 400px
-        const maxStarRadius = originalStarRadius * 50;  // 1000px
+        // Sun a little larger than now (400-1000px), but not as big as before (60k-600k).
+        // Let's aim for a range around 1500px to 3000px.
+        const minStarRadius = originalStarRadius * 75; // 1500px
+        const maxStarRadius = originalStarRadius * 150; // 3000px
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
-        // No explicit cap needed here as initial zoom handles fitting it.
 
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
-        const minOverallOrbitRadius = currentStarRadius + 80; // Still start planets a bit away from star
-        // Max orbit based on a reasonable multiplier of the star's radius.
-        // This ensures planets are not too far away that they're hard to spot relative to the sun.
-        const starOrbitMultiplier = 15; // Planets can go up to 15x the star's radius away
-        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 2; // Ensure enough space on typical screens
+        const minOverallOrbitRadius = currentStarRadius + 80;
+        // Increase orbital distance. Use a higher multiplier for star-based orbits.
+        const starOrbitMultiplier = 30; // Increased from 15
+        const screenOrbitMultiplier = Math.min(canvas.width, canvas.height) * 5; // Reverted to a higher multiplier for screen, was *2
 
         const maxOverallOrbitRadius = Math.max(screenOrbitMultiplier, currentStarRadius * starOrbitMultiplier);
 
@@ -186,15 +184,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let previousOrbitRadius = minOverallOrbitRadius;
 
         for (let i = 0; i < numPlanets; i++) {
-            // Planet size remains 50-140px, which should be visible against 400-1000px suns.
             const planetRadius = (Math.floor(Math.random() * 10) + 5) * 10;
 
-            const minPlanetClearance = 10; // Minimum space between actual planet bodies
+            const minPlanetClearance = 10;
             const minimumOrbitDistanceFromPreviousPlanet = previousOrbitRadius +
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
 
-            // Keep large orbit spacing for spread out feel
+            // These are the previous wide ranges. Reverted them to be as wide as before.
             const minSpacingBetweenOrbits = 300;
             const maxSpacingBetweenOrbits = 1500;
 
@@ -252,14 +249,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentPlanets.length > 0) {
             const outermostPlanet = currentPlanets[currentPlanets.length - 1];
-            // Ensure extent covers the farthest point of elliptical or circular orbit + planet radius
             const outermostDistance = outermostPlanet.isElliptical ? outermostPlanet.semiMajorAxis : outermostPlanet.orbitRadius;
             maxWorldExtent = Math.max(maxWorldExtent, outermostDistance + outermostPlanet.radius);
         }
 
         maxWorldExtent *= 1.2; // 20% padding
 
-        const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2); // *2 because extent is radius
+        const requiredZoom = Math.min(canvas.width, canvas.height) / (maxWorldExtent * 2);
 
         camera.zoom = requiredZoom;
         camera.zoom = Math.max(0.0001, Math.min(camera.zoom, 50));
