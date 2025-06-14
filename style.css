@@ -55,9 +55,6 @@ body {
 /* In-game panel styling */
 .in-game-panel {
     position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%); /* Center horizontally */
     background-color: rgba(0, 0, 0, 0.85); /* Semi-transparent background */
     border: 2px solid #0f0; /* Green border */
     padding: 15px 25px;
@@ -72,4 +69,65 @@ body {
 
 .in-game-panel.active {
     display: block;
+}
+
+/* Specific positioning for starter planet prompt and chosen planet confirm */
+#starter-planet-panel,
+#planet-chosen-panel {
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%); /* Center horizontally */
+}
+
+/* NEW: Planet List Panel specific styling */
+#planet-list-panel {
+    top: 20px;
+    right: 20px; /* Position on the right */
+    left: auto; /* Override left: 50% from .in-game-panel */
+    transform: none; /* Override translateX(-50%) from .in-game-panel */
+    width: 250px; /* Fixed width */
+    height: calc(100vh - 40px); /* Fill most of height, leave 20px top/bottom margin */
+    overflow-y: auto; /* Make it scrollable if content overflows */
+    padding: 10px; /* Adjust padding for list content */
+    box-sizing: border-box; /* Include padding in width/height */
+    text-align: left; /* Align text within panel */
+}
+
+#planet-list-panel h2 {
+    color: #00ff00;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+    border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+    padding-bottom: 5px;
+}
+
+#planet-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#planet-list li {
+    padding: 8px 5px;
+    border-bottom: 1px dashed rgba(0, 255, 0, 0.1);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    font-size: 1.1em;
+    user-select: none; /* Prevent text selection on click */
+}
+
+#planet-list li:last-child {
+    border-bottom: none;
+}
+
+#planet-list li:hover {
+    background-color: rgba(0, 255, 0, 0.15);
+    color: #fff;
+}
+
+#planet-list li.active { /* For highlighting the currently followed planet */
+    background-color: rgba(0, 255, 0, 0.3);
+    color: #fff;
+    font-weight: bold;
 }
