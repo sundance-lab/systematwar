@@ -1,6 +1,4 @@
-// --- CONFIGURATION VARIABLES ---
 const CONFIG = {
-    // Game Flow & UI
     PLANET_NAMES: [
         "Aethel", "Xylos", "Cygnus", "Vorlag", "Zandor",
         "Kryll", "Solara", "Draxia", "Vespera", "Rilax",
@@ -10,68 +8,59 @@ const CONFIG = {
         "Echo", "Phobos", "Deimos", "Ares", "Hecate"
     ],
 
-    // Star Properties
-    ORIGINAL_STAR_RADIUS: 20, // Base reference for scaling
-    MIN_STAR_MULTIPLIER: 75,   // Min sun size: ORIGINAL_STAR_RADIUS * 75 (1500px)
-    MAX_STAR_MULTIPLIER: 150,  // Max sun size: ORIGINAL_STAR_RADIUS * 150 (3000px)
+    ORIGINAL_STAR_RADIUS: 20,
+    MIN_STAR_MULTIPLIER: 75,
+    MAX_STAR_MULTIPLIER: 150,
 
-    // Planet Properties
     PLANET_RADIUS_MIN_BASE: 5,
     PLANET_RADIUS_MAX_BASE: 14,
-    PLANET_RADIUS_SCALE_FACTOR: 10, // Planets are (5-14) * 10 = 50-140px
-    MIN_PLANETS: 6, // Minimum number of planets to spawn
-    MAX_PLANETS: 12, // Maximum number of planets to spawn
+    PLANET_RADIUS_SCALE_FACTOR: 10,
+    MIN_PLANETS: 6,
+    MAX_PLANETS: 12,
 
-    // Orbit Properties
-    MIN_ORBIT_START_FROM_STAR: 80, // Min initial distance from star for first planet
-    STAR_ORBIT_MULTIPLIER: 50,     // Max orbit can be STAR_ORBIT_MULTIPLIER * currentStarRadius
-    SCREEN_ORBIT_MULTIPLIER: 10,   // Max orbit can be SCREEN_ORBIT_MULTIPLIER * min(canvas.width, canvas.height)
+    MIN_ORBIT_START_FROM_STAR: 80,
+    STAR_ORBIT_MULTIPLIER: 50,
+    SCREEN_ORBIT_MULTIPLIER: 10,
 
-    MIN_SPACING_BETWEEN_ORBITS: 500,  // Min random gap between orbits
-    MAX_SPACING_BETWEEN_ORBITS: 3000, // Max random gap between orbits
-    MIN_PLANET_CLEARANCE: 10,         // Min pixel space between actual planet bodies on different orbits
+    MIN_SPACING_BETWEEN_ORBITS: 500,
+    MAX_SPACING_BETWEEN_ORBITS: 3000,
+    MIN_PLANET_CLEARANCE: 10,
 
-    ORBIT_LINE_WIDTH: 0.25, // Base width of orbit lines
+    ORBIT_LINE_WIDTH: 0.25,
 
     MIN_ORBIT_SPEED: 0.0001,
     MAX_ORBIT_SPEED: 0.003,
 
-    ELLIPTICAL_ORBIT_CHANCE: 0.15, // 15% chance for elliptical orbit
+    ELLIPTICAL_ORBIT_CHANCE: 0.15,
     ELLIPSE_ECCENTRICITY_MIN: 0.1,
     ELLIPSE_ECCENTRICITY_MAX: 0.8,
 
-    // Camera Properties
-    CAMERA_INITIAL_ZOOM: 1, // Will be dynamically calculated. Placeholder.
-    CAMERA_SCALE_FACTOR: 1.1, // Zoom step size
-    CAMERA_DRAG_SENSITIVITY: 0.8, // Slower drag
-    CAMERA_MIN_ZOOM: 0.0001, // Max zoom out (can go very far)
-    CAMERA_MAX_ZOOM: 50,     // Max zoom in
-    INITIAL_VIEW_PADDING_FACTOR: 1.2, // Padding for initial zoom calculation
+    CAMERA_INITIAL_ZOOM: 1,
+    CAMERA_SCALE_FACTOR: 1.1,
+    CAMERA_DRAG_SENSITIVITY: 0.8,
+    CAMERA_MIN_ZOOM: 0.0001,
+    CAMERA_MAX_ZOOM: 50,
+    INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    // Camera Tracking
-    CAMERA_FOLLOW_LERP_FACTOR: 0.08, // How smoothly the camera follows position (increased for slightly snappier follow)
-    CAMERA_ZOOM_LERP_FACTOR: 0.05, // NEW: Separate LERP factor for zoom (smaller = slower zoom)
-    CAMERA_FOLLOW_ZOOM_TARGET: 3.0, // Target zoom level when following a planet (increased for closer view)
+    CAMERA_FOLLOW_LERP_FACTOR: 0.08,
+    CAMERA_ZOOM_LERP_FACTOR: 0.05,
+    CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
-    // Planet Counter
-    PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000, // Update counter every 1000ms (1 second)
+    PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
-    // Game Score
-    CONSTANT_SCORE_INTERVAL_MS: 100, // Gain points every 100ms
-    CONSTANT_SCORE_POINTS: 1, // Points gained constantly
-    ASTEROID_HIT_POINTS: 50, // Points gained per asteroid destroyed
+    CONSTANT_SCORE_INTERVAL_MS: 100,
+    CONSTANT_SCORE_POINTS: 1,
+    ASTEROID_HIT_POINTS: 50,
 
-    // Asteroid Properties
-    ASTEROID_SPAWN_INTERVAL_MS: 500, // Spawn a new asteroid every 500ms
+    ASTEROID_SPAWN_INTERVAL_MS: 500,
     ASTEROID_MIN_RADIUS: 5,
     ASTEROID_MAX_RADIUS: 15,
-    ASTEROID_MIN_SPEED: 0.5, // Pixels per frame (at zoom 1)
+    ASTEROID_MIN_SPEED: 0.5,
     ASTEROID_MAX_SPEED: 2.0,
-    ASTEROID_SPAWN_DISTANCE_FROM_PLANET: 2000, // Distance from chosen planet to spawn
-    ASTEROID_OFFSCREEN_THRESHOLD: 3000, // Distance to remove off-screen asteroids
-    MAX_ASTEROIDS_ON_SCREEN: 50, // Max number of asteroids before slowing spawn
+    ASTEROID_SPAWN_DISTANCE_FROM_PLANET: 2000,
+    ASTEROID_OFFSCREEN_THRESHOLD: 3000,
+    MAX_ASTEROIDS_ON_SCREEN: 50,
 };
-// --- END CONFIGURATION VARIABLES ---
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -96,16 +85,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPlanets = [];
     let currentStarRadius;
 
-    // Camera state: camera.x, camera.y now represent the WORLD COORDINATES at the center of the screen
     const camera = {
         x: 0,
         y: 0,
         zoom: CONFIG.CAMERA_INITIAL_ZOOM,
         scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
         dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
-        targetPlanet: null, // Stores the planet object to follow
-        activeListItem: null, // Stores the currently active list item
-        targetZoom: CONFIG.CAMERA_INITIAL_ZOOM // NEW: What zoom level the camera is trying to achieve
+        targetPlanet: null,
+        activeListItem: null,
+        targetZoom: CONFIG.CAMERA_INITIAL_ZOOM
     };
 
     let isDragging = false;
@@ -113,12 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectingStarterPlanet = false;
     let gameActive = false;
 
-    // Game State Variables
     let score = 0;
     let asteroids = [];
     let chosenStarterPlanet = null;
 
-    // Interval IDs for clearing
     let planetCounterInterval = null;
     let constantScoreInterval = null;
     let asteroidSpawnInterval = null;
@@ -129,30 +115,28 @@ document.addEventListener('DOMContentLoaded', () => {
         gameScreen.classList.add('active');
 
         initSolarSystem();
-        setInitialCameraZoom(); // Initial zoom to show whole system
+        setInitialCameraZoom();
 
-        // Reset game state on play
         camera.x = 0;
         camera.y = 0;
         camera.targetPlanet = null;
         camera.activeListItem = null;
-        camera.targetZoom = camera.zoom; // Sync targetZoom with current zoom
+        camera.targetZoom = camera.zoom;
         score = 0;
         asteroids = [];
         chosenStarterPlanet = null;
-        updateScoreDisplay(); // Reset score display
+        updateScoreDisplay();
 
         populatePlanetList();
 
         animateSolarSystem();
 
-        selectingStarterPlanet = true; // Enter selection phase
-        starterPlanetPanel.classList.add('active'); // Show "Choose planet" prompt
-        planetListPanel.classList.add('active'); // Show planet list
-        scorePanel.classList.add('active'); // Show score panel
+        selectingStarterPlanet = true;
+        starterPlanetPanel.classList.add('active');
+        planetListPanel.classList.add('active');
+        scorePanel.classList.add('active');
         gameActive = true;
 
-        // Start counters
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
 
@@ -167,11 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false;
         
-        // Only set target. LERP will handle smooth transition.
-        camera.targetPlanet = chosenStarterPlanet;
-        camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Set the desired target zoom for the follow
+        camera.targetPlanet = chosenStarterPlanet; 
+        camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
 
-        // Start asteroid spawning only after a planet is chosen
         if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
         asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
     });
@@ -181,26 +163,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        // Manual zoom overrides follow's target zoom, but keeps following position
-        // Don't set camera.targetPlanet = null here.
-
         const mouseX = e.clientX;
         const mouseY = e.clientY;
 
-        // Calculate world coordinates before zoom based on current camera.x,y (center of screen)
         const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-        if (e.deltaY < 0) { // Zoom in
+        if (e.deltaY < 0) {
             camera.zoom *= camera.scaleFactor;
-        } else { // Zoom out
+        } else {
             camera.zoom /= camera.scaleFactor;
         }
 
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-        camera.targetZoom = camera.zoom; // NEW: Set targetZoom to current manual zoom level
+        camera.targetZoom = camera.zoom;
 
-        // Adjust camera position to zoom towards the mouse cursor
         const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
@@ -211,21 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
 
-        // Clicks for selection/shooting do not unlock the camera anymore.
-        // Only direct list item clicks (handled in populatePlanetList) or an explicit 'unfollow' would.
-        // This means manual panning is disabled if following, as seen below.
-
-        if (e.button === 0) { // Left mouse button
+        if (e.button === 0) {
             e.preventDefault();
             let clickHandled = false;
 
             const mouseX = e.clientX;
             const mouseY = e.clientY;
-            // Convert screen click to world coordinates based on new camera convention
             const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
             const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-            // 1. Try to select a starter planet (if in selection phase)
             if (selectingStarterPlanet) {
                 for (let i = 0; i < currentPlanets.length; i++) {
                     const planet = currentPlanets[i];
@@ -256,8 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } 
             
-            // 2. If not selecting a starter planet, or if no planet was clicked, try to shoot an asteroid
-            // This is active even when following a planet.
             if (!selectingStarterPlanet && !clickHandled && chosenStarterPlanet) {
                 for (let i = asteroids.length - 1; i >= 0; i--) {
                     const asteroid = asteroids[i];
@@ -276,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 3. If nothing else was clicked AND camera is NOT currently following, initiate drag
             if (!clickHandled && !camera.targetPlanet) { 
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -288,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', (e) => {
         if (!gameActive) return;
 
-        // Only allow manual panning if not currently following a planet
         if (isDragging && !camera.targetPlanet) {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
@@ -319,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const originalStarRadius = CONFIG.ORIGINAL_STAR_RADIUS;
         const minStarRadius = originalStarRadius * CONFIG.MIN_STAR_MULTIPLIER;
-        const maxStarRadius = originalStarStarRadius * CONFIG.MAX_STAR_MULTIPLIER;
+        const maxStarRadius = originalStarRadius * CONFIG.MAX_STAR_MULTIPLIER; // Fixed: originalStarStarRadius was a typo
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
 
@@ -405,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const listItem = document.createElement('li');
             const planetNumberSpan = document.createElement('span');
             planetNumberSpan.classList.add('planet-number');
-            planetNumberSpan.textContent = `0 `; // Removed 's'
+            planetNumberSpan.textContent = `0 `;
 
             const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name}`);
 
@@ -422,9 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
 
-                // On list click, set target and let LERP handle smooth transition
                 camera.targetPlanet = planet;
-                camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Set target zoom for this new follow
+                camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
             });
             planetList.appendChild(listItem);
         });
@@ -500,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         camera.zoom = requiredZoom;
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-        camera.targetZoom = camera.zoom; // Sync targetZoom with current initial zoom
+        camera.targetZoom = camera.zoom;
     }
 
 
@@ -508,12 +474,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2); // Move origin to screen center
+        ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        // Camera follow logic (updates camera.x, y, zoom)
         if (camera.targetPlanet) {
             let targetX, targetY;
-            // Get the current world position of the target planet
             if (camera.targetPlanet.isElliptical) {
                 const unrotatedX = camera.targetPlanet.semiMajorAxis * Math.cos(camera.targetPlanet.angle);
                 const unrotatedY = camera.targetPlanet.semiMinorAxis * Math.sin(camera.targetPlanet.angle);
@@ -524,24 +488,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
             }
 
-            // Smoothly move camera's center (camera.x, camera.y are world coords) towards the target planet's world position
             camera.x = camera.x + (targetX - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
             camera.y = camera.y + (targetY - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
 
-            // Smoothly adjust zoom towards the desired target zoom level
-            camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR; // Use new ZOOM_LERP_FACTOR
-            camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM)); // Clamp zoom
+            camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR;
+            camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
         }
 
-        // Apply camera transformations: scale first, then translate world
         ctx.scale(camera.zoom, camera.zoom);
-        ctx.translate(-camera.x, -camera.y); // Translate world so (camera.x, camera.y) is at center
+        ctx.translate(-camera.x, -camera.y);
 
 
-        const systemCenterX = 0; // World origin is now at (0,0) in this transformed space
+        const systemCenterX = 0;
         const systemCenterY = 0;
 
-        // Draw the Star
         ctx.beginPath();
         ctx.arc(systemCenterX, systemCenterY, currentStarRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'yellow';
@@ -550,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Draw and update planets
         currentPlanets.forEach(planet => {
             ctx.beginPath();
             if (planet.isElliptical) {
@@ -591,19 +550,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fill();
         });
 
-        // Draw and update asteroids
         for (let i = asteroids.length - 1; i >= 0; i--) {
             const asteroid = asteroids[i];
             asteroid.x += asteroid.velocityX;
             asteroid.y += asteroid.velocityY;
 
-            // Remove asteroids if they fly too far off-screen from the camera's center view
             const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
             const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
 
             if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
                 asteroids.splice(i, 1);
-                continue; // Skip drawing this one
+                continue;
             }
 
             ctx.beginPath();
@@ -612,8 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fill();
         }
 
-
-        ctx.restore(); // Restore the canvas state (remove transformations for next frame)
+        ctx.restore();
         animationFrameId = requestAnimationFrame(animateSolarSystem);
     }
 
@@ -622,14 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         if (gameActive) {
             cancelAnimationFrame(animationFrameId);
-            // On resize, if not following, re-frame the whole system.
-            // If following, just let it continue following; lerp will naturally adjust to new canvas size.
             if (!camera.targetPlanet) {
                 setInitialCameraZoom();
-            } else {
-                // If following, the targetZoom needs to be re-evaluated for the new canvas size
-                // if it were dependent on canvas size, but it's fixed (3.0).
-                // Just let the LERP continue.
             }
             animateSolarSystem();
         }
