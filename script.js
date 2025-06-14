@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isDragging = false;
     let lastMouseX, lastMouseY;
-    let selectingStarterPlanet = false; // New state variable
+    let selectingStarterPlanet = false;
 
     playButton.addEventListener('click', () => {
         titleScreen.classList.remove('active');
@@ -33,10 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.zoom = 0.1;
         animateSolarSystem();
 
-        // Prompt user to choose a starter planet
         selectingStarterPlanet = true;
         alert("Choose a starter planet by clicking on it!");
-        canvas.style.cursor = 'pointer'; // Indicate clickable
+        canvas.style.cursor = 'pointer';
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -61,18 +60,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        if (selectingStarterPlanet && e.button === 0) { // If selecting and left-click
+        if (selectingStarterPlanet && e.button === 0) {
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Convert canvas coordinates to world coordinates
             const worldX = (mouseX - canvas.width / 2) / camera.zoom - camera.x;
             const worldY = (mouseY - canvas.height / 2) / camera.zoom - camera.y;
 
-            // Check if a planet was clicked
             for (let i = 0; i < currentPlanets.length; i++) {
                 const planet = currentPlanets[i];
-                // Calculate planet's current world position
                 let planetX, planetY;
                 if (planet.isElliptical) {
                     const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
@@ -84,21 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     planetY = Math.sin(planet.angle) * planet.orbitRadius;
                 }
 
-                // Distance from mouse click to planet center
                 const distance = Math.sqrt(
                     Math.pow(worldX - planetX, 2) +
                     Math.pow(worldY - planetY, 2)
                 );
 
                 if (distance < planet.radius) {
-                    // Planet clicked!
-                    alert(`You chose Planet ${i + 1}!`); // Simple feedback
-                    selectingStarterPlanet = false; // End selection phase
-                    canvas.style.cursor = 'grab'; // Restore cursor for dragging
-                    return; // Stop checking
+                    alert(`You chose Planet ${i + 1}!`);
+                    selectingStarterPlanet = false;
+                    canvas.style.cursor = 'grab';
+                    return;
                 }
             }
-        } else if (e.button === 0) { // Left mouse button for dragging
+        } else if (e.button === 0) {
             e.preventDefault();
             isDragging = true;
             lastMouseX = e.clientX;
@@ -108,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (isDragging && !selectingStarterPlanet) { // Only drag if not selecting
+        if (isDragging && !selectingStarterPlanet) {
             const dx = e.clientX - lastMouseX;
             const dy = e.clientY - lastMouseY;
 
@@ -118,14 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         } else if (selectingStarterPlanet) {
-            canvas.style.cursor = 'pointer'; // Keep pointer cursor during selection
+            canvas.style.cursor = 'pointer';
         } else {
-            canvas.style.cursor = 'grab'; // Default grab cursor
+            canvas.style.cursor = 'grab';
         }
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (e.button === 0 && !selectingStarterPlanet) { // Left mouse button and not selecting
+        if (e.button === 0 && !selectingStarterPlanet) {
             isDragging = false;
             canvas.style.cursor = 'grab';
         }
@@ -133,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('mouseleave', () => {
         isDragging = false;
-        if (!selectingStarterPlanet) { // Only reset to default if not in selection mode
+        if (!selectingStarterPlanet) {
             canvas.style.cursor = 'default';
         }
     });
@@ -142,25 +136,27 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const originalStarRadius = 20;
-        // Average sun size 3x what it is now (current min 400, current max 2000)
-        // Let's scale these up by roughly 3.
-        const minStarRadius = originalStarRadius * 60; // Was 20 * 20 = 400, now 20 * 60 = 1200
-        const maxStarRadius = originalStarRadius * 300; // Was 20 * 100 = 2000, now 20 * 300 = 6000
+        // Average sun size 20x what it is now (current min 1200, current max 6000)
+        // This means scaling current ranges by 20x, but we'll re-center the 'average'.
+        // Let's set a new base for the *average* to be around 20x the current average.
+        // Current average star radius: (1200 + 6000) / 2 = 3600
+        // New desired average: 3600 * 20 = 72000
+        // Let's create a range around this new average.
+        const minStarRadius = originalStarRadius * 600; // 20 * 600 = 12000
+        const maxStarRadius = originalStarRadius * 6000; // 20 * 6000 = 120000
 
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
-        currentStarRadius = Math.min(currentStarRadius, Math.min(canvas.width, canvas.height) * 0.4);
+        currentStarRadius = Math.min(currentStarRadius, Math.min(canvas.width, canvas.height) * 0.4); // Still cap for very small screens
 
         const numPlanets = Math.floor(Math.random() * 11) + 2;
 
         const minOverallOrbitRadius = currentStarRadius + 80;
-        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 10;
+        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 20; // Increased max orbit distance to accommodate larger gaps
 
         currentPlanets = [];
         let previousOrbitRadius = minOverallOrbitRadius;
 
         for (let i = 0; i < numPlanets; i++) {
-            // Average planet size 10x what it is now (currently 5-14)
-            // Let's scale the random range up by 10.
             const planetRadius = (Math.floor(Math.random() * 10) + 5) * 10; // New range: 50-140
 
             const minPlanetClearance = 10;
@@ -168,8 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
 
-            const minSpacingBetweenOrbits = 300;
-            const maxSpacingBetweenOrbits = 1500;
+            // Increase average distance between orbiting planets by 5x (current min 300, max 1500)
+            // New average should be 5x current average: (300+1500)/2 = 900. New avg = 4500.
+            const minSpacingBetweenOrbits = 1500; // Roughly 5x previous min (300)
+            const maxSpacingBetweenOrbits = 7500; // Roughly 5x previous max (1500)
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
@@ -253,7 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 ctx.arc(systemCenterX, systemCenterY, planet.orbitRadius, 0, Math.PI * 2);
             }
-            ctx.lineWidth = 0.5 / camera.zoom;
+            // Make the orbit lines thinner.
+            ctx.lineWidth = 0.25 / camera.zoom; // Halved from 0.5
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.stroke();
 
