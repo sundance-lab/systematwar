@@ -28,8 +28,8 @@ const CONFIG = {
 
     ORBIT_LINE_WIDTH: 0.25,
 
-    MIN_ORBIT_SPEED: 0.00002, // DECREASED by 60% (was 0.00005)
-    MAX_ORBIT_SPEED: 0.0006,  // DECREASED by 60% (was 0.0015)
+    MIN_ORBIT_SPEED: 0.00002,
+    MAX_ORBIT_SPEED: 0.0006,
 
     ELLIPTICAL_ORBIT_CHANCE: 0.15,
     ELLIPSE_ECCENTRICITY_MIN: 0.1,
@@ -59,6 +59,20 @@ const CONFIG = {
     ASTEROID_OFFSCREEN_THRESHOLD: 3000,
     ASTEROID_LIFETIME_MS: 3000,
     MAX_ASTEROIDS_ON_SCREEN: 50,
+
+    // NEW GAME MECHANIC CONFIGS
+    INITIAL_PLAYER_UNITS: 1000, // Starting units for the player
+    STARTER_PLANET_INITIAL_UNITS: 500, // Units on the planet chosen by player
+    NEUTRAL_PLANET_INITIAL_UNITS: 100, // Units on neutral planets
+    AI_PLANET_INITIAL_UNITS: 200,      // Units on AI planets (if implemented later)
+    PLANET_UNIT_GENERATION_RATE: 10, // Units generated per interval
+    PLANET_UNIT_GENERATION_INTERVAL_MS: 5000, // Interval for unit generation
+
+    OWNER_COLORS: { // Visual colors for ownership
+        'player': '#00ff00', // Green
+        'ai': '#ff0000',     // Red
+        'neutral': '#888888' // Grey
+    }
 };
 
 
@@ -74,6 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmPlanetButton = document.getElementById('confirm-planet-button');
     const planetListPanel = document.getElementById('planet-list-panel');
     const planetList = document.getElementById('planet-list');
+    const playerUnitsPanel = document.getElementById('player-units-panel'); // NEW
+    const playerUnitCountDisplay = document.getElementById('player-unit-count'); // NEW
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -98,12 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectingStarterPlanet = false;
     let gameActive = false;
 
-    let score = 0;
+    let playerUnits = 0; // Renamed 'score' to 'playerUnits'
     let asteroids = [];
-    let chosenStarterPlanet = null;
+    let chosenStarterPlanet = null; // The player's home planet
 
     let planetCounterInterval = null;
     let asteroidSpawnInterval = null;
+    let planetUnitGenerationInterval = null; // NEW
 
 
     playButton.addEventListener('click', () => {
@@ -118,35 +135,126 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetPlanet = null;
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
-        score = 0;
+        playerUnits = CONFIG.INITIAL_PLAYER_UNITS; // Initialize player's global units
         asteroids = [];
         chosenStarterPlanet = null;
+        updatePlayerUnitDisplay(); // Update display for player units
 
         populatePlanetList();
 
         animateSolarSystem();
 
-        selectingStarterPlanet = true;
+        selectingStarterPlanet = true; // Enter selection phase
         starterPlanetPanel.classList.add('active');
         planetListPanel.classList.add('active');
+        playerUnitsPanel.classList.add('active'); // Show player units panel
         gameActive = true;
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
 
-        // Removed constant score interval
+        if (planetUnitGenerationInterval) clearInterval(planetUnitGenerationInterval);
+        planetUnitGenerationInterval = setInterval(generatePlanetUnits, CONFIG.PLANET_UNIT_GENERATION_INTERVAL_MS); // NEW
     });
 
     confirmPlanetButton.addEventListener('click', () => {
         planetChosenPanel.classList.remove('active');
         selectingStarterPlanet = false;
         
+        // Assign ownership and initial units to the chosen planet
+        chosenStarterPlanet.owner = 'player';
+        chosenStarterPlanet.units = CONFIG.STARTER_PLANET_INITIAL_UNITS;
+        updatePlanetListItem(chosenStarterPlanet); // Update its entry in the list
+
         camera.targetPlanet = chosenStarterPlanet; 
         camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
 
         if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
         asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
     });
+
+    // Handle right-click (contextmenu) for invasion
+    canvas.addEventListener('contextmenu', (e) => {
+        if (!gameActive) return;
+        e.preventDefault(); // Prevent default browser context menu
+
+        // Only allow invasion orders if a home planet is chosen and not in selection mode
+        if (!chosenStarterPlanet || selectingStarterPlanet) return;
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+        // Find the planet that was right-clicked
+        let targetPlanet = null;
+        for (let i = 0; i < currentPlanets.length; i++) {
+            const planet = currentPlanets[i];
+            let planetWorldX, planetWorldY;
+            if (planet.isElliptical) {
+                const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
+                const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
+                planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+                planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+            } else {
+                planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
+                planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
+            }
+
+            const distance = Math.sqrt(
+                Math.pow(worldX - planetWorldX, 2) +
+                Math.pow(worldY - planetWorldY, 2)
+            );
+
+            if (distance < planet.radius) {
+                targetPlanet = planet;
+                break;
+            }
+        }
+
+        if (targetPlanet) {
+            // Check invasion conditions
+            if (targetPlanet.owner === 'player') {
+                alert("You already control this planet!");
+                return;
+            }
+            if (chosenStarterPlanet.units === 0) {
+                 alert("Your home planet has no units to send!");
+                 return;
+            }
+
+            const unitsToSendStr = prompt(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units (max ${chosenStarterPlanet.units}):`);
+            const unitsToSend = parseInt(unitsToSendStr);
+
+            if (isNaN(unitsToSend) || unitsToSend <= 0 || unitsToSend > chosenStarterPlanet.units) {
+                alert("Invalid number of units or not enough units available.");
+                return;
+            }
+
+            // At this point, units are valid and can be sent
+            chosenStarterPlanet.units -= unitsToSend; // Deduct from source planet
+            updatePlanetListItem(chosenStarterPlanet); // Update source planet's display
+
+            // For now, just a confirmation. Actual invasion logic to be added.
+            alert(`${unitsToSend} units dispatched from ${chosenStarterPlanet.name} to ${targetPlanet.name}! (Actual invasion mechanics not yet implemented.)`);
+
+            // This is where you would create an 'invasionFleet' object
+            // and add it to a global 'activeFleets' array to simulate travel
+            // Example:
+            // activeFleets.push({
+            //     source: chosenStarterPlanet,
+            //     target: targetPlanet,
+            //     units: unitsToSend,
+            //     startTime: performance.now(),
+            //     travelDuration: calculateTravelTime(chosenStarterPlanet, targetPlanet)
+            // });
+
+        } else {
+            // Right-clicked empty space
+            // console.log("Right-clicked empty space."); // Optional debug
+        }
+    });
+
 
     canvas.addEventListener('wheel', (e) => {
         if (!gameActive) return;
@@ -156,7 +264,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const mouseX = e.clientX;
         const mouseY = e.clientY;
 
-        // Calculate world coordinates before zoom based on current camera.x,y (center of screen)
         const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
@@ -169,8 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
         camera.targetZoom = camera.zoom;
 
-        // NEW FIX: Only adjust camera position if NOT following a target planet
-        if (!camera.targetPlanet) {
+        if (!camera.targetPlanet) { // Only adjust camera position if NOT following a target planet
             const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
             const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
@@ -230,8 +336,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     if (distance < asteroid.radius) {
-                        score += CONFIG.ASTEROID_HIT_POINTS;
-                        // updateScoreDisplay(); // Score display removed
+                        playerUnits += CONFIG.ASTEROID_HIT_POINTS; // Points from asteroids now add to playerUnits
+                        updatePlayerUnitDisplay();
                         asteroids.splice(i, 1);
                         clickHandled = true;
                         break;
@@ -350,7 +456,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 eccentricity: eccentricity,
                 rotationAngle: rotationAngle,
                 timeSurvived: 0,
-                listItemRef: null
+                listItemRef: null,
+                owner: 'neutral', // NEW: Default to neutral
+                units: CONFIG.NEUTRAL_PLANET_INITIAL_UNITS // NEW: Initialize units
             });
 
             previousOrbitRadius = actualOrbitRadius;
@@ -364,12 +472,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentPlanets.forEach((planet, index) => {
             const listItem = document.createElement('li');
+            
+            const ownerIndicator = document.createElement('span'); // NEW
+            ownerIndicator.classList.add('owner-indicator'); // NEW
+            ownerIndicator.classList.add(`owner-${planet.owner}`); // NEW
+
             const planetNumberSpan = document.createElement('span');
             planetNumberSpan.classList.add('planet-number');
             planetNumberSpan.textContent = `0 `;
 
-            const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name}`);
+            const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name} (${planet.units})`); // NEW: Include units
 
+            listItem.appendChild(ownerIndicator); // NEW: Add indicator
             listItem.appendChild(planetNumberSpan);
             listItem.appendChild(planetNameText);
             listItem.dataset.planetIndex = index;
@@ -390,6 +504,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // NEW: Function to update a single planet's list item display
+    function updatePlanetListItem(planet) {
+        if (planet.listItemRef) {
+            const ownerIndicator = planet.listItemRef.querySelector('.owner-indicator');
+            const planetNameTextNode = planet.listItemRef.lastChild; // The text node for name and units
+
+            // Update owner indicator color
+            ownerIndicator.className = 'owner-indicator'; // Reset classes
+            ownerIndicator.classList.add(`owner-${planet.owner}`);
+
+            // Update units in text node
+            // Assuming format is 'P#: Name (Units)'
+            const currentText = planetNameTextNode.textContent;
+            const regex = /\(.*\)/; // Regex to find content in parentheses
+            planetNameTextNode.textContent = currentText.replace(regex, `(${planet.units})`);
+        }
+    }
+
+
     function updatePlanetCounters() {
         currentPlanets.forEach((planet, index) => {
             planet.timeSurvived++;
@@ -400,6 +533,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+    }
+
+    // NEW: Function to generate units for owned planets
+    function generatePlanetUnits() {
+        currentPlanets.forEach(planet => {
+            if (planet.owner !== 'neutral') { // Only owned planets generate units
+                planet.units += CONFIG.PLANET_UNIT_GENERATION_RATE;
+                updatePlanetListItem(planet); // Update units display in list
+            }
+        });
+    }
+
+
+    // Renamed from updateScoreDisplay
+    function updatePlayerUnitDisplay() {
+        playerUnitCountDisplay.textContent = playerUnits;
     }
 
     function spawnAsteroid() {
@@ -491,6 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const systemCenterX = 0;
         const systemCenterY = 0;
 
+        // Draw the Star
         ctx.beginPath();
         ctx.arc(systemCenterX, systemCenterY, currentStarRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'yellow';
@@ -499,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
         ctx.shadowBlur = 0;
 
+        // Draw and update planets
         currentPlanets.forEach(planet => {
             ctx.beginPath();
             if (planet.isElliptical) {
@@ -535,8 +686,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.beginPath();
             ctx.arc(x, y, planet.radius, 0, Math.PI * 2);
-            ctx.fillStyle = planet.color;
+            ctx.fillStyle = planet.color; // Planet's individual color
             ctx.fill();
+            
+            // NEW: Draw owner indicator on the planet in the solar system view
+            ctx.beginPath();
+            ctx.arc(x, y, planet.radius + 5 / camera.zoom, 0, Math.PI * 2); // Ring around the planet
+            ctx.strokeStyle = CONFIG.OWNER_COLORS[planet.owner];
+            ctx.lineWidth = 3 / camera.zoom; // Thinner line that scales with zoom
+            ctx.stroke();
         });
 
         for (let i = asteroids.length - 1; i >= 0; i--) {
