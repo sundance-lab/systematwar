@@ -12,14 +12,97 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPlanets = [];
     let currentStarRadius;
 
+    // Camera object to manage zoom and pan
+    const camera = {
+        x: 0, // Camera's X position relative to the center of the solar system
+        y: 0, // Camera's Y position relative to the center of the solar system
+        zoom: 1, // Current zoom level (1 = no zoom)
+        scaleFactor: 1.1 // How much to zoom in/out with each scroll
+    };
+
+    let isDragging = false;
+    let lastMouseX, lastMouseY;
+
     playButton.addEventListener('click', () => {
         titleScreen.classList.remove('active');
         gameScreen.classList.add('active');
         initSolarSystem();
+        // Reset camera when starting new game
+        camera.x = 0;
+        camera.y = 0;
+        camera.zoom = 1;
         animateSolarSystem();
     });
 
+    // --- Camera Control Event Listeners ---
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault(); // Prevent page scrolling
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+
+        // Calculate world coordinates before zoom
+        const worldXBefore = (mouseX - canvas.width / 2) / camera.zoom - camera.x;
+        const worldYBefore = (mouseY - canvas.height / 2) / camera.zoom - camera.y;
+
+        if (e.deltaY < 0) { // Zoom in (scroll up)
+            camera.zoom *= camera.scaleFactor;
+        } else { // Zoom out (scroll down)
+            camera.zoom /= camera.scaleFactor;
+        }
+
+        // Clamp zoom to reasonable limits
+        camera.zoom = Math.max(0.1, Math.min(camera.zoom, 50)); // Min 0.1x, Max 50x
+
+        // Adjust camera position to zoom towards the mouse cursor
+        const worldXAfter = (mouseX - canvas.width / 2) / camera.zoom - camera.x;
+        const worldYAfter = (mouseY - canvas.height / 2) / camera.zoom - camera.y;
+
+        camera.x -= (worldXAfter - worldXBefore);
+        camera.y -= (worldYAfter - worldYBefore);
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 1) { // Middle mouse button
+            e.preventDefault(); // Prevent default middle click behavior (e.g., auto-scroll)
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            canvas.style.cursor = 'grabbing'; // Change cursor
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+
+            // Adjust camera position based on mouse movement and current zoom level
+            // Divide by camera.zoom so that movement feels consistent regardless of zoom
+            camera.x += dx / camera.zoom;
+            camera.y += dy / camera.zoom;
+
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (e.button === 1) {
+            isDragging = false;
+            canvas.style.cursor = 'grab'; // Change cursor back
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        isDragging = false; // Stop dragging if mouse leaves canvas
+        canvas.style.cursor = 'default';
+    });
+    // --- End Camera Control Event Listeners ---
+
+
     function initSolarSystem() {
+        // Clear previous drawings (not strictly necessary before transform, but good practice)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const centerX = canvas.width / 2;
@@ -30,29 +113,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const minStarRadius = originalStarRadius * 20; // 20x original
         const maxStarRadius = originalStarRadius * 100; // 100x original (2000px)
 
-        // Randomly generate star radius within the new range
         currentStarRadius = minStarRadius + (Math.random() * (maxStarRadius - minStarRadius));
-
-        // Still cap it at a reasonable size relative to the canvas to ensure planets can still be seen
-        // Cap to ensure it doesn't fill *too* much of the screen, leaving room for planets
-        currentStarRadius = Math.min(currentStarRadius, Math.min(canvas.width, canvas.height) / 2.5); // Adjusted cap
-
-        // Draw the Star
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, currentStarRadius, 0, Math.PI * 2);
-        ctx.fillStyle = 'yellow';
-        ctx.shadowColor = 'orange';
-        ctx.shadowBlur = 15 + (currentStarRadius / 20);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Removed the strong cap here, as zoom allows us to view very large stars
+        // currentStarRadius = Math.min(currentStarRadius, Math.min(canvas.width, canvas.height) / 2.5);
 
         // Generate Planets
         const numPlanets = Math.floor(Math.random() * 11) + 2; // Between 2 and 12 planets
 
         // 3. Increase the distance a planet can be orbiting the sun by a lot.
-        // Adjust the overall range for orbits based on star size and canvas dimensions
-        const minOverallOrbitRadius = currentStarRadius + 80; // Start further out from potentially massive star
-        const maxOverallOrbitRadius = Math.min(canvas.width, canvas.height) * 0.45; // Can go up to almost half of the screen dimension
+        const minOverallOrbitRadius = currentStarRadius + 80;
+        // Allow planets to be very far out, as we can zoom out
+        const maxOverallOrbitRadius = (currentStarRadius * 3) + 1000; // Example: Star size * 3 + a large offset
 
         currentPlanets = [];
 
@@ -61,51 +132,29 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < numPlanets; i++) {
             const planetRadius = Math.floor(Math.random() * 10) + 5; // Planets between 5 and 14 radius
 
-            // 4. Ensure planets can't overlap when orbiting.
-            // Minimum spacing needed is the sum of radii of two planets.
-            // Let's ensure a minimum clear space between orbits.
             const minClearance = 30; // Minimum pixel space between the outer edge of one orbit and inner edge of next
-            const minOrbitGap = planetRadius + (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) + minClearance;
-            // The above accounts for the current planet's radius and the previous planet's radius + clearance.
-            // Simplified: just ensure a minimum step up, and planets have their own radius.
-
             const minSpacingBetweenOrbits = 80; // A base minimum for how much orbits should spread
             const maxSpacingBetweenOrbits = 250; // Max random spread
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
-            // Ensure the new orbit doesn't exceed the max allowed orbit
-            if (potentialOrbitRadius > maxOverallOrbitRadius) {
-                 potentialOrbitRadius = maxOverallOrbitRadius;
-            }
+            const requiredMinOrbitForNoOverlap = previousOrbitRadius + (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) + planetRadius + minClearance;
 
-            // If we've reached the max and still need more planets, we might put them closer
-            // or break out. For simplicity, we'll let them cluster if max is hit early.
-            // To strictly prevent overlap, ensure new orbit is always >= previous + previous_planet_radius + current_planet_radius.
-            const actualOrbitRadius = Math.max(potentialOrbitRadius, previousOrbitRadius + (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) + planetRadius + minClearance);
+            let actualOrbitRadius = Math.max(potentialOrbitRadius, requiredMinOrbitForNoOverlap);
 
-
-            // If after all calculations, the actualOrbitRadius is beyond the max, cap it.
+            // If we're pushing past the maximum, we might need to cap it
             if (actualOrbitRadius > maxOverallOrbitRadius) {
-                // If we can't place it without going over max, and it's too close to previous, it might overlap or be off-screen.
-                // For a dynamic system, it's better to sometimes not place a planet than to force an overlap or go too far.
-                // However, based on the prompt, we prioritize "more distance" and "no overlap."
-                // This means the last few planets might be very close to maxOverallOrbitRadius.
-                // Let's ensure it's still at least at the previous orbit radius.
-                if (actualOrbitRadius - planetRadius < previousOrbitRadius + (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) + minClearance) {
-                    // This scenario means we can't place it without overlap or going past max.
-                    // Instead of creating invalid state, let's just break if we can't place it.
-                    // This might result in fewer than `numPlanets` if the space runs out.
-                    break;
-                }
-                actualOrbitRadius = maxOverallOrbitRadius;
+                 // If the required minimum orbit for no overlap is already greater than maxOverallOrbitRadius,
+                 // then we can't place this planet without violating the max distance or overlapping.
+                 if (requiredMinOrbitForNoOverlap > maxOverallOrbitRadius) {
+                     break; // Cannot place this planet without overlap or exceeding max.
+                 }
+                 actualOrbitRadius = maxOverallOrbitRadius;
             }
-
 
             const initialAngle = Math.random() * Math.PI * 2;
-            // 2. Bring down the max speed a planet can orbit by a lot.
-            const minOrbitSpeed = 0.0001; // Very slow minimum
-            const maxOrbitSpeed = 0.003;  // Slower maximum
+            const minOrbitSpeed = 0.0001;
+            const maxOrbitSpeed = 0.003;
 
             const orbitSpeed = (minOrbitSpeed + Math.random() * (maxOrbitSpeed - minOrbitSpeed)) * (Math.random() > 0.5 ? 1 : -1);
 
@@ -120,19 +169,32 @@ document.addEventListener('DOMContentLoaded', () => {
             previousOrbitRadius = actualOrbitRadius;
         }
 
-        // Sort planets by orbitRadius for correct drawing order (smaller orbits drawn first)
         currentPlanets.sort((a, b) => a.orbitRadius - b.orbitRadius);
     }
 
     function animateSolarSystem() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
+        // Apply camera transformations
+        // Save the current canvas state (no transformations)
+        ctx.save();
+
+        // Translate to the center of the canvas
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        // Apply zoom (scaling)
+        ctx.scale(camera.zoom, camera.zoom);
+        // Translate by the camera's position (panning)
+        ctx.translate(camera.x, camera.y);
+
+        // All drawing operations from here on will be affected by the camera transform
+
+        // Center of the solar system (0,0 in the transformed coordinate space)
+        const systemCenterX = 0;
+        const systemCenterY = 0;
 
         // Redraw the Star
         ctx.beginPath();
-        ctx.arc(centerX, centerY, currentStarRadius, 0, Math.PI * 2);
+        ctx.arc(systemCenterX, systemCenterY, currentStarRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'yellow';
         ctx.shadowColor = 'orange';
         ctx.shadowBlur = 15 + (currentStarRadius / 20);
@@ -143,22 +205,28 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlanets.forEach(planet => {
             // Draw orbit path
             ctx.beginPath();
-            ctx.arc(centerX, centerY, planet.orbitRadius, 0, Math.PI * 2);
+            ctx.arc(systemCenterX, systemCenterY, planet.orbitRadius, 0, Math.PI * 2);
+            // Adjust line width to appear consistent regardless of zoom
+            ctx.lineWidth = 0.5 / camera.zoom;
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 0.5;
             ctx.stroke();
 
             // Update planet position
             planet.angle += planet.speed;
-            const x = centerX + Math.cos(planet.angle) * planet.orbitRadius;
-            const y = centerY + Math.sin(planet.angle) * planet.orbitRadius;
+            const x = systemCenterX + Math.cos(planet.angle) * planet.orbitRadius;
+            const y = systemCenterY + Math.sin(planet.angle) * planet.orbitRadius;
 
             // Draw planet
             ctx.beginPath();
+            // Adjust planet radius to appear consistent (or not, depending on desired effect)
+            // For this, we want planets to look "actual size" even when zoomed, so their drawn radius is fixed.
             ctx.arc(x, y, planet.radius, 0, Math.PI * 2);
             ctx.fillStyle = planet.color;
             ctx.fill();
         });
+
+        // Restore the canvas state (remove transformations for next frame)
+        ctx.restore();
 
         animationFrameId = requestAnimationFrame(animateSolarSystem);
     }
@@ -166,10 +234,16 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        if (gameScreen.classList.contains('active')) {
-            cancelAnimationFrame(animationFrameId);
-            initSolarSystem();
-            animateSolarSystem();
-        }
+        // No need to re-init solar system on resize if camera handles the view
+        // Just keep the existing system and the camera will adjust to the new canvas size.
+        // If you want a *new* system on resize, uncomment initSolarSystem();
+        // if (gameScreen.classList.contains('active')) {
+        //     cancelAnimationFrame(animationFrameId);
+        //     initSolarSystem();
+        //     animateSolarSystem();
+        // }
     });
+
+    // Initial cursor style
+    canvas.style.cursor = 'grab';
 });
