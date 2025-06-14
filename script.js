@@ -27,14 +27,14 @@ const CONFIG = {
     STAR_ORBIT_MULTIPLIER: 50,     // Max orbit can be STAR_ORBIT_MULTIPLIER * currentStarRadius
     SCREEN_ORBIT_MULTIPLIER: 10,   // Max orbit can be SCREEN_ORBIT_MULTIPLIER * min(canvas.width, canvas.height)
 
-    MIN_SPACING_BETWEEN_ORBITS: 1500,  // Min random gap between orbits
-    MAX_SPACING_BETWEEN_ORBITS: 5000, // Max random gap between orbits
+    MIN_SPACING_BETWEEN_ORBITS: 3000,  // Min random gap between orbits
+    MAX_SPACING_BETWEEN_ORBITS: 10000, // Max random gap between orbits
     MIN_PLANET_CLEARANCE: 10,         // Min pixel space between actual planet bodies on different orbits
 
     ORBIT_LINE_WIDTH: 0.25, // Base width of orbit lines
 
     MIN_ORBIT_SPEED: 0.0001,
-    MAX_ORBIT_SPEED: 0.003,
+    MAX_ORBIT_SPEED: 0.001,
 
     ELLIPTICAL_ORBIT_CHANCE: 0.15, // 15% chance for elliptical orbit
     ELLIPSE_ECCENTRICITY_MIN: 0.1,
