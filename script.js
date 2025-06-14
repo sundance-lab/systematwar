@@ -61,6 +61,7 @@ const CONFIG = {
     ASTEROID_LIFETIME_MS: 3000,
     MAX_ASTEROIDS_ON_SCREEN: 50,
 
+    // GAME MECHANIC CONFIGS
     INITIAL_PLAYER_UNITS: 1000,
     STARTER_PLANET_INITIAL_UNITS: 500,
     NEUTRAL_PLANET_INITIAL_UNITS: 100,
@@ -69,10 +70,17 @@ const CONFIG = {
     PLANET_UNIT_GENERATION_INTERVAL_MS: 5000,
 
     OWNER_COLORS: {
-        'player': '#00ff00',
-        'ai': '#ff0000',
-        'neutral': '#888888'
-    }
+        'player': '#00ff00', // Green
+        'ai': '#ff0000',     // Red
+        'neutral': '#888888' // Grey
+    },
+
+    // INVASION & COMBAT CONFIGS
+    INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND: 500, // How fast invasion fleets travel
+    COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001, // % chance per unit per millisecond to deal damage/take loss
+    COMBAT_ROUND_DURATION_MS: 100, // How long each combat round lasts
+    COMBAT_ATTACKER_BONUS_PERCENT: 0.1, // Attacker gets 10% bonus units in combat calculation
+    MIN_UNITS_FOR_AI_PLANET: 50, // AI planets need at least this many units to defend effectively
 };
 
 
@@ -91,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerUnitsPanel = document.getElementById('player-units-panel');
     const playerUnitCountDisplay = document.getElementById('player-unit-count');
 
-    // NEW MODAL ELEMENTS
+    // MODAL ELEMENTS
     const gameModalBackdrop = document.getElementById('game-modal-backdrop');
     const gameModal = document.getElementById('game-modal');
     const modalMessage = document.getElementById('modal-message');
@@ -125,15 +133,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let playerUnits = 0;
     let asteroids = [];
-    let chosenStarterPlanet = null; // The player's home planet
+    let chosenStarterPlanet = null;
+    let activeFleets = []; // NEW: Array to hold active invasion fleets
 
     let planetCounterInterval = null;
     let asteroidSpawnInterval = null;
     let planetUnitGenerationInterval = null;
 
-    // Modals internal state
-    let modalCallback = null;
-
+    let modalCallback = null; // Stores the callback function for modals
 
     playButton.addEventListener('click', () => {
         titleScreen.classList.remove('active');
@@ -149,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetZoom = camera.zoom;
         playerUnits = CONFIG.INITIAL_PLAYER_UNITS;
         asteroids = [];
+        activeFleets = []; // Reset fleets
         chosenStarterPlanet = null;
         updatePlayerUnitDisplay();
 
@@ -184,30 +192,57 @@ document.addEventListener('DOMContentLoaded', () => {
         asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
     });
 
-    // NEW: Modal OK button click handlers
     modalConfirm.addEventListener('click', () => {
         gameModalBackdrop.classList.remove('active');
-        if (modalCallback) modalCallback(); // Execute callback if it's an alert
-        modalCallback = null; // Reset callback
+        if (modalCallback) modalCallback();
+        modalCallback = null;
     });
 
     modalInputConfirm.addEventListener('click', () => {
         gameModalBackdrop.classList.remove('active');
         const inputValue = parseInt(modalInput.value);
-        if (modalCallback) modalCallback(inputValue); // Pass input value to callback
-        modalCallback = null; // Reset callback
+        if (modalCallback) modalCallback(inputValue);
+        modalCallback = null;
     });
 
+    function showModal(message, type, callback = null) {
+        modalMessage.textContent = message;
+        modalCallback = callback;
+
+        if (type === 'prompt') {
+            modalInputArea.style.display = 'flex';
+            modalConfirm.style.display = 'none';
+            modalInputConfirm.style.display = 'block';
+            modalInput.value = ''; // Clear previous input
+            modalInput.focus(); // Focus input for immediate typing
+        } else { // 'alert'
+            modalInputArea.style.display = 'none';
+            modalConfirm.style.display = 'block';
+            modalInputConfirm.style.display = 'none';
+        }
+
+        gameModalBackdrop.classList.add('active');
+        gameModal.classList.add('active');
+        gameActive = false; // Temporarily pause game interaction
+    }
+
+    function hideModal() { // NEW: Function to hide modal and resume game
+        gameModalBackdrop.classList.remove('active');
+        gameModal.classList.remove('active');
+        gameActive = true; // Resume game interaction
+    }
 
     // Handle right-click (contextmenu) for invasion
     canvas.addEventListener('contextmenu', (e) => {
-        if (!gameActive) return;
-        e.preventDefault();
+        if (!gameActive) return; // Prevent if game not active
+        e.preventDefault(); // Prevent default browser context menu
 
-        // If a modal is open, prevent interaction with game underneath
-        if (gameModalBackdrop.classList.contains('active')) return;
+        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
 
-        if (!chosenStarterPlanet || selectingStarterPlanet) return;
+        if (!chosenStarterPlanet || selectingStarterPlanet) {
+            showModal("You must choose your starter planet first!", 'alert');
+            return;
+        }
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -217,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let targetPlanet = null;
         for (let i = 0; i < currentPlanets.length; i++) {
             const planet = currentPlanets[i];
+            // Get current planet position for accurate click detection
             let planetWorldX, planetWorldY;
             if (planet.isElliptical) {
                 const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
@@ -240,10 +276,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (targetPlanet) {
+            // Cannot invade self
             if (targetPlanet.owner === 'player') {
                 showModal("You already control this planet!", 'alert');
                 return;
             }
+            // Cannot invade if not enough units on home planet
             if (chosenStarterPlanet.units === 0) {
                  showModal("Your home planet has no units to send!", 'alert');
                  return;
@@ -254,20 +292,116 @@ document.addEventListener('DOMContentLoaded', () => {
                     showModal("Invalid number of units or not enough units available.", 'alert');
                     return;
                 }
-
+                
+                // Units are valid, launch invasion!
                 chosenStarterPlanet.units -= unitsToSend;
-                updatePlanetListItem(chosenStarterPlanet);
+                updatePlayerUnitDisplay(); // Update player's general unit count if units were pulled from there
+                updatePlanetListItem(chosenStarterPlanet); // Update source planet's display
 
-                showModal(`${unitsToSend} units dispatched from ${chosenStarterPlanet.name} to ${targetPlanet.name}! (Actual invasion mechanics not yet implemented.)`, 'alert');
+                // Calculate initial position of the fleet
+                let sourcePlanetWorldX, sourcePlanetWorldY;
+                if (chosenStarterPlanet.isElliptical) {
+                    const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
+                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+                    sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
+                    sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
+                } else {
+                    sourcePlanetWorldX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+                    sourcePlanetWorldY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+                }
+
+                // Create and add invasion fleet
+                activeFleets.push({
+                    source: chosenStarterPlanet,
+                    target: targetPlanet,
+                    units: unitsToSend,
+                    departureTime: performance.now(),
+                    travelDuration: calculateTravelDuration(chosenStarterPlanet, targetPlanet),
+                    currentX: sourcePlanetWorldX, // Initial position
+                    currentY: sourcePlanetWorldY,
+                    color: CONFIG.OWNER_COLORS['player'] // Player fleet color
+                });
+
+                showModal(`${unitsToSend} units dispatched from ${chosenStarterPlanet.name} to ${targetPlanet.name}!`, 'alert');
             });
 
+        } else {
+            showModal("Right-click to select a target planet for invasion!", 'alert');
         }
     });
+
+    // NEW: Function to calculate travel duration between two planets
+    function calculateTravelDuration(sourcePlanet, targetPlanet) {
+        // Estimate current positions for distance calculation
+        let sourceX, sourceY;
+        if (sourcePlanet.isElliptical) {
+            const unrotatedX = sourcePlanet.semiMajorAxis * Math.cos(sourcePlanet.angle);
+            const unrotatedY = sourcePlanet.semiMinorAxis * Math.sin(sourcePlanet.angle);
+            sourceX = unrotatedX * Math.cos(sourcePlanet.rotationAngle) - unrotatedY * Math.sin(sourcePlanet.rotationAngle);
+            sourceY = unrotatedX * Math.sin(sourcePlanet.rotationAngle) + unrotatedY * Math.cos(sourcePlanet.rotationAngle);
+        } else {
+            sourceX = Math.cos(sourcePlanet.angle) * sourcePlanet.orbitRadius;
+            sourceY = Math.sin(sourcePlanet.angle) * sourcePlanet.orbitRadius;
+        }
+
+        let targetX, targetY;
+        if (targetPlanet.isElliptical) {
+            const unrotatedX = targetPlanet.semiMajorAxis * Math.cos(targetPlanet.angle);
+            const unrotatedY = targetPlanet.semiMinorAxis * Math.sin(targetPlanet.angle);
+            targetX = unrotatedX * Math.cos(targetPlanet.rotationAngle) - unrotatedY * Math.sin(targetPlanet.rotationAngle);
+            targetY = unrotatedX * Math.sin(targetPlanet.rotationAngle) + unrotatedY * Math.cos(targetPlanet.rotationAngle);
+        } else {
+            targetX = Math.cos(targetPlanet.angle) * targetPlanet.orbitRadius;
+            targetY = Math.sin(targetPlanet.angle) * targetPlanet.orbitRadius;
+        }
+
+        const distance = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
+        return distance / CONFIG.INVASION_TRAVEL_SPEED_UNITS_PER_MS; // Duration in milliseconds
+    }
+
+    // NEW: Function to resolve combat
+    function resolveCombat(fleet) {
+        const attackerUnits = fleet.units;
+        const defenderUnits = fleet.target.units;
+        const targetPlanet = fleet.target;
+
+        let resultMessage = "";
+        let winner = null;
+        let remainingAttackerUnits = attackerUnits;
+        let remainingDefenderUnits = defenderUnits;
+
+        // Simple clash combat
+        if (attackerUnits > defenderUnits) {
+            remainingAttackerUnits = attackerUnits - defenderUnits;
+            remainingDefenderUnits = 0;
+            winner = 'attacker';
+        } else {
+            remainingDefenderUnits = defenderUnits - attackerUnits;
+            remainingAttackerUnits = 0;
+            winner = 'defender';
+        }
+
+        if (winner === 'attacker') {
+            resultMessage = `Invasion successful! ${fleet.source.name} forces of ${attackerUnits} units defeated ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
+            resultMessage += `\n${remainingAttackerUnits} units remain and claim the planet for you.`;
+            targetPlanet.owner = 'player';
+            targetPlanet.units = remainingAttackerUnits;
+            updatePlanetListItem(targetPlanet); // Update owner and units in list
+            playerUnits += remainingAttackerUnits; // Add remaining units to global pool if this becomes the new home (or just stay on planet)
+        } else {
+            resultMessage = `Invasion failed! ${fleet.source.name} forces of ${attackerUnits} units were defeated by ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
+            resultMessage += `\n${remainingDefenderUnits} units remain on ${targetPlanet.name}.`;
+            targetPlanet.units = remainingDefenderUnits;
+            updatePlanetListItem(targetPlanet); // Update units in list
+            // No units return to player if failed
+        }
+        showModal(resultMessage, 'alert');
+    }
 
 
     canvas.addEventListener('wheel', (e) => {
         if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
+        if (gameModalBackdrop.classList.contains('active')) return;
 
         e.preventDefault();
 
@@ -297,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
+        if (gameModalBackdrop.classList.contains('active')) return;
 
         if (e.button === 0) {
             e.preventDefault();
@@ -348,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (distance < asteroid.radius) {
                         playerUnits += CONFIG.ASTEROID_HIT_POINTS;
-                        // updatePlayerUnitDisplay(); // No longer updating constantly or on hit
+                        updatePlayerUnitDisplay(); // Update display for player units
                         asteroids.splice(i, 1);
                         clickHandled = true;
                         break;
@@ -366,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('mousemove', (e) => {
         if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
+        if (gameModalBackdrop.classList.contains('active')) return;
 
         if (isDragging && !camera.targetPlanet) {
             const dx = e.clientX - lastMouseX;
@@ -382,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('mouseup', (e) => {
         if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
+        if (gameModalBackdrop.classList.contains('active')) return;
 
         if (e.button === 0) {
             isDragging = false;
@@ -391,30 +525,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('mouseleave', () => {
         if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return; // Prevent interaction if modal is open
+        if (gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
     });
-
-    // NEW: Function to show custom game modal
-    // type: 'alert' or 'prompt'
-    // callback: function to execute on OK/Confirm (receives input value if type is 'prompt')
-    function showModal(message, type, callback = null) {
-        modalMessage.textContent = message;
-        modalCallback = callback;
-
-        if (type === 'prompt') {
-            modalInputArea.style.display = 'flex';
-            modalInput.value = ''; // Clear previous input
-            modalConfirm.style.display = 'none';
-        } else { // 'alert'
-            modalInputArea.style.display = 'none';
-            modalConfirm.style.display = 'block';
-        }
-
-        gameModalBackdrop.classList.add('active');
-        gameModal.classList.add('active');
-    }
-
 
     function initSolarSystem() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -477,6 +590,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 semiMinorAxis = semiMajorAxis * Math.sqrt(1 - eccentricity * eccentricity);
                 rotationAngle = Math.random() * Math.PI * 2;
             }
+            
+            // Randomly assign initial owner (for non-player planets)
+            const ownerType = Math.random() < 0.5 ? 'ai' : 'neutral'; // 50/50 AI vs Neutral for others
+            const initialUnits = ownerType === 'ai' ? CONFIG.AI_PLANET_INITIAL_UNITS : CONFIG.NEUTRAL_PLANET_INITIAL_UNITS;
 
             currentPlanets.push({
                 name: shuffledPlanetNames[i % shuffledPlanetNames.length],
@@ -484,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 orbitRadius: actualOrbitRadius,
                 angle: initialAngle,
                 speed: orbitSpeed,
-                color: `hsl(${Math.random() * 360}, 70%, 50%)`, // Base planet color
+                color: `hsl(${Math.random() * 360}, 70%, 50%)`,
                 isElliptical: isElliptical,
                 semiMajorAxis: semiMajorAxis,
                 semiMinorAxis: semiMinorAxis,
@@ -492,8 +609,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 rotationAngle: rotationAngle,
                 timeSurvived: 0,
                 listItemRef: null,
-                owner: 'neutral', // All planets start neutral by default
-                units: CONFIG.NEUTRAL_PLANET_INITIAL_UNITS
+                owner: ownerType, // Initial random owner
+                units: initialUnits // Initial units based on owner type
             });
 
             previousOrbitRadius = actualOrbitRadius;
@@ -510,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const ownerIndicator = document.createElement('span');
             ownerIndicator.classList.add('owner-indicator');
-            ownerIndicator.classList.add(`owner-${planet.owner}`); // Initial owner class
+            ownerIndicator.classList.add(`owner-${planet.owner}`);
 
             const planetNumberSpan = document.createElement('span');
             planetNumberSpan.classList.add('planet-number');
@@ -544,11 +661,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const ownerIndicator = planet.listItemRef.querySelector('.owner-indicator');
             const planetNameTextNode = planet.listItemRef.lastChild;
 
-            // Update owner indicator color
-            ownerIndicator.className = 'owner-indicator'; // Reset classes
+            ownerIndicator.className = 'owner-indicator';
             ownerIndicator.classList.add(`owner-${planet.owner}`);
 
-            // Update units in text node, preserving existing text around units
             const currentTextParts = planetNameTextNode.textContent.split('(');
             planetNameTextNode.textContent = currentTextParts[0].trim() + ` (${planet.units})`;
         }
@@ -638,16 +753,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function animateSolarSystem() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Update all planet angles first (Fixes "still planet" issue)
+        // --- UPDATE PHASE ---
+        // 1. Update all planet angles (Crucial for correct orbiting and camera tracking)
         currentPlanets.forEach(planet => {
             planet.angle += planet.speed;
         });
 
+        // 2. Update asteroid positions
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+            const asteroid = asteroids[i];
+            if (performance.now() - asteroid.spawnTime > CONFIG.ASTEROID_LIFETIME_MS) {
+                asteroids.splice(i, 1);
+                continue;
+            }
+            asteroid.x += asteroid.velocityX;
+            asteroid.y += asteroid.velocityY;
+            // Off-screen despawn check is in drawing phase for efficiency after position update
+        }
+
+        // 3. Update active invasion fleets (NEW)
+        for (let i = activeFleets.length - 1; i >= 0; i--) {
+            const fleet = activeFleets[i];
+            const timeElapsed = performance.now() - fleet.departureTime;
+            fleet.progress = Math.min(timeElapsed / fleet.travelDuration, 1); // Clamp to 1
+
+            // Calculate current position of fleet along path
+            let sourceX, sourceY, targetX, targetY;
+            // Get source planet's current world position
+            if (fleet.source.isElliptical) {
+                const unrotatedX = fleet.source.semiMajorAxis * Math.cos(fleet.source.angle);
+                const unrotatedY = fleet.source.semiMinorAxis * Math.sin(fleet.source.angle);
+                sourceX = unrotatedX * Math.cos(fleet.source.rotationAngle) - unrotatedY * Math.sin(fleet.source.rotationAngle);
+                sourceY = unrotatedX * Math.sin(fleet.source.rotationAngle) + unrotatedY * Math.cos(fleet.source.rotationAngle);
+            } else {
+                sourceX = Math.cos(fleet.source.angle) * fleet.source.orbitRadius;
+                sourceY = Math.sin(fleet.source.angle) * fleet.source.orbitRadius;
+            }
+            // Get target planet's current world position
+            if (fleet.target.isElliptical) {
+                const unrotatedX = fleet.target.semiMajorAxis * Math.cos(fleet.target.angle);
+                const unrotatedY = fleet.target.semiMinorAxis * Math.sin(fleet.target.angle);
+                targetX = unrotatedX * Math.cos(fleet.target.rotationAngle) - unrotatedY * Math.sin(fleet.target.rotationAngle);
+                targetY = unrotatedX * Math.sin(fleet.target.rotationAngle) + unrotatedY * Math.cos(fleet.target.rotationAngle);
+            } else {
+                targetX = Math.cos(fleet.target.angle) * fleet.target.orbitRadius;
+                targetY = Math.sin(fleet.target.angle) * fleet.target.orbitRadius;
+            }
+
+            fleet.currentX = sourceX + (targetX - sourceX) * fleet.progress;
+            fleet.currentY = sourceY + (targetY - sourceY) * fleet.progress;
+
+            // Combat Resolution on Arrival
+            if (fleet.progress >= 1) {
+                resolveCombat(fleet);
+                activeFleets.splice(i, 1); // Remove fleet after combat
+            }
+        }
+
+
+        // --- DRAW PHASE ---
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
 
+        // Camera follow logic (updates camera.x, y, zoom)
         if (camera.targetPlanet) {
             let targetX, targetY;
             // Get the current world position of the target planet (already updated for this frame)
@@ -720,7 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.beginPath();
             ctx.arc(x, y, planet.radius, 0, Math.PI * 2);
-            ctx.fillStyle = planet.color;
+            ctx.fillStyle = planet.color; // Planet's individual color
             ctx.fill();
             
             // Draw owner indicator on the planet in the solar system view
@@ -731,30 +901,25 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
         });
 
-        for (let i = asteroids.length - 1; i >= 0; i--) {
-            const asteroid = asteroids[i];
-
-            if (performance.now() - asteroid.spawnTime > CONFIG.ASTEROID_LIFETIME_MS) {
-                asteroids.splice(i, 1);
-                continue;
-            }
-
-            asteroid.x += asteroid.velocityX;
-            asteroid.y += asteroid.velocityY;
-
-            const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
-            const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
-
-            if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
-                asteroids.splice(i, 1);
-                continue;
-            }
-
+        // Draw asteroids
+        asteroids.forEach(asteroid => {
             ctx.beginPath();
             ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
             ctx.fillStyle = asteroid.color;
             ctx.fill();
-        }
+        });
+
+        // Draw active invasion fleets (NEW)
+        activeFleets.forEach(fleet => {
+            ctx.beginPath();
+            ctx.arc(fleet.currentX, fleet.currentY, 8 / camera.zoom, 0, Math.PI * 2); // Small circle for fleet
+            ctx.fillStyle = fleet.color;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1 / camera.zoom;
+            ctx.stroke();
+        });
+
 
         ctx.restore();
         animationFrameId = requestAnimationFrame(animateSolarSystem);
