@@ -113,16 +113,11 @@ body {
     padding: 6px 5px;
     border-bottom: 1px dashed rgba(0, 255, 0, 0.1);
     cursor: pointer;
-    transition: background-color 0.2s ease, color 0.2s ease;
     font-size: 0.95em;
     user-select: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-#planet-list li:last-child {
-    border-bottom: none;
 }
 
 #planet-list li:hover {
@@ -142,7 +137,7 @@ body {
     margin-right: 5px;
 }
 
-/* NEW: Player Units Panel Styling */
+/* Player Units Panel Styling */
 #player-units-panel {
     top: 20px;
     left: 20px;
@@ -161,8 +156,8 @@ body {
     text-shadow: 0 0 5px #0f0;
 }
 
-/* NEW: Styles for planet ownership indicators in list */
-#planet-list li .owner-indicator {
+/* Styles for planet ownership indicators in list */
+.owner-indicator {
     display: inline-block;
     width: 10px;
     height: 10px;
@@ -175,3 +170,67 @@ body {
 .owner-player { background-color: #00ff00; } /* Green for player */
 .owner-ai { background-color: #ff0000; }    /* Red for AI */
 .owner-neutral { background-color: #888888; } /* Grey for neutral */
+
+
+/* NEW: Generic Game Modal Styling */
+.game-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* Dark semi-transparent overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200; /* Above all other panels */
+    display: none; /* Hidden by default */
+}
+
+.game-modal {
+    position: relative; /* Override absolute from .in-game-panel */
+    transform: none; /* Override translateX(-50%) */
+    min-width: 250px;
+    max-width: 400px;
+    padding: 25px;
+    display: flex; /* Use flexbox for internal layout */
+    flex-direction: column;
+    gap: 15px; /* Space between elements */
+}
+
+.game-modal p {
+    margin: 0; /* Remove default paragraph margin */
+    font-size: 1.1em;
+    line-height: 1.4;
+}
+
+.game-modal #modal-input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.game-modal input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid #0f0;
+    color: #fff;
+    font-size: 1em;
+    border-radius: 4px;
+}
+
+.game-modal button {
+    padding: 10px 20px;
+    font-size: 1em;
+    background-color: #008000;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.game-modal button:hover {
+    background-color: #006400;
+}
