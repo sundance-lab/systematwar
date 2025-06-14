@@ -141,3 +141,37 @@ body {
     font-weight: normal;
     margin-right: 5px;
 }
+
+/* NEW: Player Units Panel Styling */
+#player-units-panel {
+    top: 20px;
+    left: 20px;
+    right: auto;
+    bottom: auto;
+    transform: none;
+    padding: 10px 15px;
+    font-size: 1.4em;
+    min-width: 120px;
+    text-align: left;
+}
+
+#player-units-panel #player-unit-count {
+    font-weight: bold;
+    color: #00ff00;
+    text-shadow: 0 0 5px #0f0;
+}
+
+/* NEW: Styles for planet ownership indicators in list */
+#planet-list li .owner-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Specific colors for owners */
+.owner-player { background-color: #00ff00; } /* Green for player */
+.owner-ai { background-color: #ff0000; }    /* Red for AI */
+.owner-neutral { background-color: #888888; } /* Grey for neutral */
