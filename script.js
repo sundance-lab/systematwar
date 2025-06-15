@@ -284,7 +284,6 @@ function updatePlayerIncomeDisplay() {
     playerIncomeCountDisplay.textContent = playerIncome;
 }
 
-// Added the generatePlanetUnits function back
 function generatePlanetUnits() {
     currentPlanets.forEach(planet => {
         if (planet.owner === 'player' || planet.owner === 'ai') {
@@ -292,9 +291,6 @@ function generatePlanetUnits() {
             updatePlanetListItem(planet);
         }
     });
-    // This call is only relevant if player's units are tracked separately on a planet
-    // and need to be updated on a display that is not handled by updatePlanetListItem
-    // For now, it updates the main player unit display based on the chosenStarterPlanet
     updatePlayerUnitDisplay(); 
 }
 
@@ -333,7 +329,7 @@ function animateSolarSystem() {
         let sourceX, sourceY, targetX, targetY;
         if (fleet.source.isElliptical) {
             const unrotatedX = fleet.source.semiMajorAxis * Math.cos(fleet.source.angle);
-            const unrotatedY = fleet.source.semiMinorAxis * Math.sin(fleet.source.angle);
+            const unrotatedY = fleet.semiMinorAxis * Math.sin(fleet.source.angle);
             sourceX = unrotatedX * Math.cos(fleet.source.rotationAngle) - unrotatedY * Math.sin(fleet.source.rotationAngle);
             sourceY = unrotatedX * Math.sin(fleet.source.rotationAngle) + unrotatedY * Math.cos(fleet.source.rotationAngle);
         } else {
@@ -606,6 +602,24 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInputConfirm = document.getElementById('modal-input-confirm');
     modalConfirm = document.getElementById('modal-confirm');
 
+    // --- ADDED NEW EVENT LISTENERS FOR MODAL BUTTONS ---
+    modalConfirm.addEventListener('click', () => {
+        hideModal();
+        if (modalCallback) {
+            modalCallback();
+            modalCallback = null; // Clear callback after use
+        }
+    });
+
+    modalInputConfirm.addEventListener('click', () => {
+        const value = parseInt(modalInput.value);
+        hideModal();
+        if (modalCallback) {
+            modalCallback(value); // Pass the input value to the callback
+            modalCallback = null; // Clear callback after use
+        }
+    });
+    // --- END OF NEW EVENT LISTENERS ---
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
