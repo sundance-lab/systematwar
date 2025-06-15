@@ -238,7 +238,7 @@ body {
     background-color: #006400;
 }
 
-/* NEW: Planet Control Panel Styling */
+/* Planet Control Panel Styling */
 #planet-control-panel {
     top: 50%;
     left: 50%;
@@ -273,4 +273,26 @@ body {
 
 #planet-control-panel button:hover {
     background-color: #006400;
+}
+
+/* NEW: Launch All Invasions Button */
+#launch-all-invasions {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    padding: 15px 30px;
+    font-size: 1.5em;
+    background-color: #008000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 100;
+    display: none; /* Hidden by default */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#launch-all-invasions:hover {
+    background-color: #006400;
+    transform: scale(1.05);
 }
