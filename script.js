@@ -255,6 +255,20 @@ function populatePlanetList() {
                 camera.activeListItem = listItem;
                 camera.targetPlanet = planet; // Focus on the clicked planet
                 camera.targetZoom = camera.zoom; // Keep current zoom
+
+                // FIX: Immediately center camera on the newly targeted planet
+                let targetX, targetY;
+                if (planet.isElliptical) {
+                    const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
+                    const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
+                    targetX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+                    targetY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+                } else {
+                    targetX = Math.cos(planet.angle) * planet.orbitRadius;
+                    targetY = Math.sin(planet.angle) * planet.orbitRadius;
+                }
+                camera.x = targetX;
+                camera.y = targetY;
             }
         });
         planetList.appendChild(listItem);
@@ -725,7 +739,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = parseInt(modalInput.value);
         hideModal();
         if (modalCallback) {
-            modalCallback(value);
+            // Pass the input value to the callback. This needs to be correctly handled by the caller.
+            modalCallback(value); 
             modalCallback = null;
         }
     });
@@ -799,6 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // NEW: Left-click (LMB) for invasion initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
+        // Condition for blocking interaction when modal or control panel is active
         if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
 
         const mouseX = e.clientX;
@@ -821,53 +837,59 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (selectedSourcePlanet.units === 0) {
                             showModal("The source planet has no units to send!", 'alert');
                         } else {
-                            // Pass source and target to the modal callback for invasion
-                            showModal(`Send units from ${selectedSourcePlanet.name} (${selectedSourcePlanet.units} units) to invade ${clickedPlanet.name} (currently ${clickedPlanet.owner} with ${clickedPlanet.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
+                            // FIX: Passed source and target directly to the modal callback closure
+                            const sourceForCallback = selectedSourcePlanet;
+                            const targetForCallback = clickedPlanet;
+
+                            showModal(`Send units from ${sourceForCallback.name} (${sourceForCallback.units} units) to invade ${targetForCallback.name} (currently ${targetForCallback.owner} with ${targetForCallback.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
                                 if (isNaN(unitsToSend) || unitsToSend <= 0) {
                                     unitsToSend = 0; // Ensures 0 if invalid input
                                 }
-                                unitsToSend = Math.min(unitsToSend, selectedSourcePlanet.units);
+                                unitsToSend = Math.min(unitsToSend, sourceForCallback.units);
                                 if (unitsToSend === 0) {
                                     showModal("Not enough units available to send any.", 'alert');
                                     return;
                                 }
 
-                                selectedSourcePlanet.units -= unitsToSend;
+                                sourceForCallback.units -= unitsToSend;
                                 updatePlayerUnitDisplay(); 
-                                updatePlanetListItem(selectedSourcePlanet);
+                                updatePlanetListItem(sourceForCallback);
 
                                 let sourcePlanetWorldX, sourcePlanetWorldY;
-                                if (selectedSourcePlanet.isElliptical) {
-                                    const unrotatedX = selectedSourcePlanet.semiMajorAxis * Math.cos(selectedSourcePlanet.angle);
-                                    const unrotatedY = selectedSourcePlanet.semiMinorAxis * Math.sin(selectedSourcePlanet.angle);
-                                    sourcePlanetWorldX = unrotatedX * Math.cos(selectedSourcePlanet.rotationAngle) - unrotatedY * Math.sin(selectedSourcePlanet.rotationAngle);
-                                    sourcePlanetWorldY = unrotatedX * Math.sin(selectedSourcePlanet.rotationAngle) + unrotatedY * Math.cos(selectedSourcePlanet.rotationAngle);
+                                if (sourceForCallback.isElliptical) {
+                                    const unrotatedX = sourceForCallback.semiMajorAxis * Math.cos(sourceForCallback.angle);
+                                    const unrotatedY = sourceForCallback.semiMinorAxis * Math.sin(sourceForCallback.angle);
+                                    sourcePlanetWorldX = unrotatedX * Math.cos(sourceForCallback.rotationAngle) - unrotatedY * Math.sin(sourceForCallback.rotationAngle);
+                                    sourcePlanetWorldY = unrotatedX * Math.sin(sourceForCallback.rotationAngle) + unrotatedY * Math.cos(sourceForCallback.rotationAngle);
                                 } else {
-                                    sourcePlanetWorldX = Math.cos(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
-                                    sourcePlanetWorldY = Math.sin(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
+                                    sourcePlanetWorldX = Math.cos(sourceForCallback.angle) * sourceForCallback.orbitRadius;
+                                    sourcePlanetWorldY = Math.sin(sourceForCallback.angle) * sourceForCallback.orbitRadius;
                                 }
 
                                 activeFleets.push({
-                                    source: selectedSourcePlanet,
-                                    target: clickedPlanet,
+                                    source: sourceForCallback,
+                                    target: targetForCallback,
                                     units: unitsToSend,
                                     departureTime: performance.now(),
-                                    travelDuration: calculateTravelDuration(selectedSourcePlanet, clickedPlanet),
+                                    travelDuration: calculateTravelDuration(sourceForCallback, targetForCallback),
                                     currentX: sourcePlanetWorldX,
                                     currentY: sourcePlanetWorldY,
                                     color: CONFIG.OWNER_COLORS['player']
                                 });
+                                // FIX: Reset source and line drawing HERE after the asynchronous modal callback completes
+                                selectedSourcePlanet = null;
+                                isDrawingInvasionLine = false;
+                                canvas.style.cursor = 'default';
                             });
                         }
                     }
                 } else { // Clicked empty space while source was selected
                     showModal("Invasion cancelled.", 'alert');
+                    // FIX: Reset source and line drawing HERE after cancellation
+                    selectedSourcePlanet = null;
+                    isDrawingInvasionLine = false;
+                    canvas.style.cursor = 'default';
                 }
-                // Reset source selection and line drawing after target selection or cancellation
-                selectedSourcePlanet = null;
-                isDrawingInvasionLine = false;
-                canvas.style.cursor = 'default';
-
             } else { // Phase 1: No source selected
                 if (clickedPlanet) {
                     if (clickedPlanet.owner === 'player') {
