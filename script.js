@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.01, // Adjusted for much smoother movement
-    CAMERA_ZOOM_LERP_FACTOR: 0.01, // Adjusted for much smoother zoom
+    CAMERA_FOLLOW_LERP_FACTOR: 0.02, // Adjusted for smoother movement
+    CAMERA_ZOOM_LERP_FACTOR: 0.02, // Adjusted for smoother zoom
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -81,7 +81,7 @@ const CONFIG = {
     COMBAT_DEFENDER_BONUS_PERCENT: 0.1,
     MIN_UNITS_FOR_AI_PLANET: 50,
 
-    INCOME_GENERATION_PER_PLAYER_PLANET: 1, // Renamed from ENERGY_GENERATION_PER_PLAYER_PLANET
+    INCOME_GENERATION_PER_PLAYER_PLANET: 1,
 };
 
 
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const planetList = document.getElementById('planet-list');
     const playerUnitsPanel = document.getElementById('player-units-panel');
     const playerUnitCountDisplay = document.getElementById('player-unit-count');
-    const playerIncomeCountDisplay = document.getElementById('player-income-count'); // Renamed from playerEnergyCountDisplay
+    const playerIncomeCountDisplay = document.getElementById('player-income-count');
 
     const gameModalBackdrop = document.getElementById('game-modal-backdrop');
     const gameModal = document.getElementById('game-modal');
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectingStarterPlanet = false;
     let gameActive = false;
 
-    let playerIncome = 0; // Renamed from playerEnergy
+    let playerIncome = 0;
     let asteroids = [];
     let chosenStarterPlanet = null;
     let activeFleets = [];
@@ -153,12 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetPlanet = null;
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
-        playerIncome = 0; // Reset income
+        playerIncome = 0;
         asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
-        // updatePlayerUnitDisplay() will be called after starter planet selection
-        updatePlayerIncomeDisplay(); // Update income display
+        updatePlayerIncomeDisplay();
 
         populatePlanetList();
 
@@ -306,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let sourcePlanetWorldX, sourcePlanetWorldY;
                 if (chosenStarterPlanet.isElliptical) {
                     const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+                    const unrotatedY = chosenPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
                     sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
                     sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
                 } else {
@@ -670,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ownerIndicator.classList.add('owner-indicator');
             ownerIndicator.classList.add(`owner-${planet.owner}`);
 
-            const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name} (${planet.units})`);
+            const planetNameText = document.createTextNode(`${planet.name} (${planet.units})`); // Removed "P${index + 1}: "
 
             listItem.appendChild(ownerIndicator);
             listItem.appendChild(planetNameText);
@@ -707,22 +706,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function updatePlanetCounters() {
-        let newlyGeneratedIncome = 0; // Renamed from newlyGeneratedEnergy
+        let newlyGeneratedIncome = 0;
         currentPlanets.forEach((planet) => {
             if (planet.owner === 'player') {
-                newlyGeneratedIncome += CONFIG.INCOME_GENERATION_PER_PLAYER_PLANET; // Renamed from ENERGY_GENERATION_PER_PLAYER_PLANET
+                newlyGeneratedIncome += CONFIG.INCOME_GENERATION_PER_PLAYER_PLANET;
             }
         });
-        playerIncome += newlyGeneratedIncome; // Renamed from playerEnergy
-        updatePlayerIncomeDisplay(); // Renamed from updatePlayerEnergyDisplay
+        playerIncome += newlyGeneratedIncome;
+        updatePlayerIncomeDisplay();
     }
 
     function updatePlayerUnitDisplay() {
         playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
     }
 
-    function updatePlayerIncomeDisplay() { // Renamed from updatePlayerEnergyDisplay
-        playerIncomeCountDisplay.textContent = playerIncome; // Renamed from playerEnergyCountDisplay
+    function updatePlayerIncomeDisplay() {
+        playerIncomeCountDisplay.textContent = playerIncome;
     }
 
     function spawnAsteroid() {
