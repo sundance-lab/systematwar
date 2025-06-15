@@ -50,8 +50,6 @@ const CONFIG = {
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
-    // Removed ASTEROID related configs
-
     INITIAL_PLAYER_UNITS: 1000,
     STARTER_PLANET_INITIAL_UNITS: 0,
     NEUTRAL_PLANET_INITIAL_UNITS: 100,
@@ -94,12 +92,10 @@ let lastMouseX, lastMouseY;
 let selectingStarterPlanet = false;
 let gameActive = false;
 let playerIncome = 0;
-// Removed: let asteroids = [];
 let chosenStarterPlanet = null;
 let activeFleets = [];
 let animationFrameId;
 let planetCounterInterval = null;
-// Removed: let asteroidSpawnInterval = null;
 let planetUnitGenerationInterval = null;
 let modalCallback = null;
 
@@ -288,7 +284,19 @@ function updatePlayerIncomeDisplay() {
     playerIncomeCountDisplay.textContent = playerIncome;
 }
 
-// Removed spawnAsteroid function
+// Added the generatePlanetUnits function back
+function generatePlanetUnits() {
+    currentPlanets.forEach(planet => {
+        if (planet.owner === 'player' || planet.owner === 'ai') {
+            planet.units += CONFIG.PLANET_UNIT_GENERATION_RATE;
+            updatePlanetListItem(planet);
+        }
+    });
+    // This call is only relevant if player's units are tracked separately on a planet
+    // and need to be updated on a display that is not handled by updatePlanetListItem
+    // For now, it updates the main player unit display based on the chosenStarterPlanet
+    updatePlayerUnitDisplay(); 
+}
 
 function setInitialCameraZoom() {
     let maxWorldExtent = currentStarRadius;
@@ -315,8 +323,6 @@ function animateSolarSystem() {
     currentPlanets.forEach(planet => {
         planet.angle += planet.speed;
     });
-
-    // Removed: 2. Update asteroid positions and despawn (entire loop)
 
     // 3. Update active invasion fleets
     for (let i = activeFleets.length - 1; i >= 0; i--) {
@@ -465,8 +471,6 @@ function animateSolarSystem() {
 
         ctx.restore(); // Restore context
     });
-
-    // Removed asteroid drawing and despawn loop here
 
     activeFleets.forEach(fleet => {
         ctx.beginPath();
@@ -620,7 +624,6 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
         playerIncome = 0;
-        // Removed: asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
         updatePlayerIncomeDisplay();
@@ -653,10 +656,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playerUnitsPanel.classList.add('active');
         gameActive = true;
         console.log("Game state after Play: gameActive=", gameActive, "selectingStarterPlanet=", selectingStarterPlanet);
-
-        // Removed: asteroidSpawnInterval setup
-        // if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
-        // asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
