@@ -112,6 +112,7 @@ let canvas;
 let ctx; // Context for canvas
 let starterPlanetPanel;
 let planetListPanel;
+let planetList;
 let playerUnitsPanel;
 let playerUnitCountDisplay;
 let playerIncomeCountDisplay;
@@ -528,25 +529,32 @@ function animateSolarSystem() {
 
         ctx.moveTo(sourcePlanetWorldX, sourcePlanetWorldY);
         ctx.lineTo(currentMouseWorldX, currentMouseWorldY);
-        ctx.strokeStyle = '#00FFFF'; // Cyan line for drawing invasion path
-        ctx.lineWidth = 5 / camera.zoom; // Make it visible
+        ctx.strokeStyle = 'rgba(128, 255, 255, 0.4)'; // Lighter, semi-transparent cyan
+        ctx.lineWidth = 0.5 / camera.zoom; // Skinny
+        ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]); // Dotted line
         ctx.stroke();
+        ctx.setLineDash([]); // Reset line dash
 
-        // Draw an arrowhead (simple triangle)
-        const angle = Math.atan2(currentMouseWorldY - sourcePlanetWorldY, currentMouseWorldX - sourcePlanetWorldX);
-        const arrowLength = 20 / camera.zoom;
-        const arrowWidth = 10 / camera.zoom;
+        // Draw an arrowhead (simple triangle) - only if mouse is far enough from source planet
+        const distance = Math.sqrt(Math.pow(currentMouseWorldX - sourcePlanetWorldX, 2) + Math.pow(currentMouseWorldY - sourcePlanetWorldY, 2));
+        const minArrowDrawDistance = 20 / camera.zoom; // Minimum distance to draw the arrowhead
 
-        ctx.save();
-        ctx.translate(currentMouseWorldX, currentMouseWorldY);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(-arrowLength, arrowWidth / 2);
-        ctx.lineTo(0, 0);
-        ctx.lineTo(-arrowLength, -arrowWidth / 2);
-        ctx.fillStyle = '#00FFFF';
-        ctx.fill();
-        ctx.restore();
+        if (distance > minArrowDrawDistance) {
+            const angle = Math.atan2(currentMouseWorldY - sourcePlanetWorldY, currentMouseWorldX - sourcePlanetWorldX);
+            const arrowLength = 10 / camera.zoom; // Less thick
+            const arrowWidth = 5 / camera.zoom; // Less thick
+
+            ctx.save();
+            ctx.translate(currentMouseWorldX, currentMouseWorldY);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-arrowLength, arrowWidth / 2);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-arrowLength, -arrowWidth / 2);
+            ctx.fillStyle = 'rgba(128, 255, 255, 0.4)'; // Match line color
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
 
@@ -905,7 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // Removed planetControlPanel.classList.contains('active') from here so zoom works while panel is open
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
         currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
@@ -932,16 +941,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // Removed planetControlPanel.classList.contains('active') from here
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         // isDrawingInvasionLine is reset by mousedown logic itself
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // Removed planetControlPanel.classList.contains('active') from here
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         // Optionally, reset selectedSourcePlanet and isDrawingInvasionLine if mouse leaves canvas during selection
         // For now, mousedown handles the reset on re-click or target click/cancel.
+    });
+
+    // Re-enabled zoom for 'wheel' event by removing blocking conditions
+    canvas.addEventListener('wheel', (e) => {
+        // Removed planetControlPanel.classList.contains('active') from here so zoom works while panel is open
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+
+        e.preventDefault();
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+
+        const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+        if (e.deltaY < 0) {
+            camera.zoom *= camera.scaleFactor;
+        } else {
+            camera.zoom /= camera.scaleFactor;
+        }
+
+        camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
+        camera.targetZoom = camera.zoom;
+
+        if (!camera.targetPlanet) {
+            const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+            const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+            camera.x -= (worldXAfter - worldXBefore);
+            camera.y -= (worldYAfter - worldYBefore);
+        }
     });
 
 
