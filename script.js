@@ -72,7 +72,7 @@ const CONFIG = {
 
     INCOME_GENERATION_PER_PLAYER_PLANET: 1,
 
-    // NEW: Fleet ball size configuration
+    // Fleet ball size configuration
     FLEET_BASE_RADIUS: 5, // Base radius in world units at zoom 1
     FLEET_MAX_SCREEN_RADIUS_PX: 15, // Maximum size in pixels on screen
 };
@@ -108,11 +108,15 @@ let selectedSourcePlanet = null;
 let isDrawingInvasionLine = false; // True if line follows cursor
 let currentMouseWorldX, currentMouseWorldY; // To store cursor position in world coords
 
-// NEW Global variable for pending invasions
+// Global variable for pending invasions
 let pendingInvasions = []; // Stores {source: planet, target: planet, units: number}
 
-// NEW Global variable for line attached to target when modal is open
+// Global variable for line attached to target when modal is open
 let tempFixedInvasionLine = null; // Stores {source: planet, target: planet} when modal is active for an invasion
+
+// NEW Global variables for panel dragging
+let isDraggingPanel = false;
+let dragPanelOffsetX, dragPanelOffsetY;
 
 
 // UI element references (declared globally, assigned in DOMContentLoaded)
@@ -140,6 +144,11 @@ let planetControlPanel;
 let controlPanelPlanetName;
 let closeControlPanelButton;
 let launchAllInvasionsButton;
+let panelUnitsDisplay; // NEW
+let panelIncomeDisplay; // NEW
+let panelSizeDisplay; // NEW
+let panelBuildingSlotsCount; // NEW
+let panelBuildingSlotsContainer; // NEW
 
 
 // --- Function Definitions (moved to top for scope) ---
@@ -369,7 +378,7 @@ function getPlanetAtCoordinates(worldX, worldY) {
     return null;
 }
 
-// NEW Helper function to get a planet's current world coordinates
+// Helper function to get a planet's current world coordinates
 function getPlanetCurrentWorldCoordinates(planet) {
     let x, y;
     const systemCenterX = 0; // Assume star is at (0,0) world coords
@@ -386,6 +395,13 @@ function getPlanetCurrentWorldCoordinates(planet) {
     }
     return { x, y };
 }
+
+// NEW Helper function to determine building slots
+function getBuildingSlots(planetRadius) {
+    // Example formula: 1 slot per 25 units of radius, minimum 1 slot
+    return Math.max(1, Math.floor(planetRadius / 25)); 
+}
+
 
 function animateSolarSystem() {
     // --- UPDATE PHASE ---
@@ -539,25 +555,7 @@ function animateSolarSystem() {
         ctx.stroke();
         ctx.setLineDash([]); // Reset line dash
 
-        // Draw an arrowhead (simple triangle) - only if mouse is far enough from source planet
-        const distance = Math.sqrt(Math.pow(currentMouseWorldX - lineStartX, 2) + Math.pow(currentMouseWorldY - lineStartY, 2));
-        const minArrowDrawDistance = 20 / camera.zoom; // Minimum distance to draw the arrowhead
-
-        if (distance > minArrowDrawDistance) {
-            const arrowLength = 10 / camera.zoom; // Less thick
-            const arrowWidth = 5 / camera.zoom; // Less thick
-
-            ctx.save();
-            ctx.translate(lineEndX, lineEndY);
-            ctx.rotate(angleToMouse);
-            ctx.beginPath();
-            ctx.moveTo(-arrowLength, arrowWidth / 2);
-            ctx.lineTo(0, 0);
-            ctx.lineTo(-arrowLength, -arrowWidth / 2);
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.7)'; // Match line color
-            ctx.fill();
-            ctx.restore();
-        }
+        // Removed arrowhead drawing
     }
 
     // NEW: Draw temporary fixed line when modal is open
@@ -586,24 +584,7 @@ function animateSolarSystem() {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        const distance = Math.sqrt(Math.pow(lineEndX - lineStartX, 2) + Math.pow(lineEndY - lineStartY, 2));
-        const minArrowDrawDistance = 20 / camera.zoom;
-
-        if (distance > minArrowDrawDistance) {
-            const arrowLength = 10 / camera.zoom;
-            const arrowWidth = 5 / camera.zoom;
-
-            ctx.save();
-            ctx.translate(lineEndX, lineEndY);
-            ctx.rotate(angleFromSourceToTarget);
-            ctx.beginPath();
-            ctx.moveTo(-arrowLength, arrowWidth / 2);
-            ctx.lineTo(0, 0);
-            ctx.lineTo(-arrowLength, -arrowWidth / 2);
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
-            ctx.fill();
-            ctx.restore();
-        }
+        // Removed arrowhead drawing
     }
 
 
@@ -631,26 +612,9 @@ function animateSolarSystem() {
         ctx.lineWidth = 1 / camera.zoom;
         ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]); // Different dash for pending
         ctx.stroke();
-        ctx.setLineDash([]); // Reset for other drawings
+        ctx.setLineDash([]);
 
-        const distance = Math.sqrt(Math.pow(lineEndX - lineStartX, 2) + Math.pow(lineEndY - lineStartY, 2));
-        const minArrowDrawDistance = 20 / camera.zoom;
-
-        if (distance > minArrowDrawDistance) {
-            const arrowLength = 10 / camera.zoom;
-            const arrowWidth = 5 / camera.zoom;
-
-            ctx.save();
-            ctx.translate(lineEndX, lineEndY);
-            ctx.rotate(angleFromSourceToTarget);
-            ctx.beginPath();
-            ctx.moveTo(-arrowLength, arrowWidth / 2);
-            ctx.lineTo(0, 0);
-            ctx.lineTo(-arrowLength, -arrowWidth / 2);
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.4)'; // Match line color
-            ctx.fill();
-            ctx.restore();
-        }
+        // Removed arrowhead drawing
     });
 
 
@@ -671,15 +635,13 @@ function animateSolarSystem() {
 }
 
 function calculateTravelDuration(sourcePlanet, targetPlanet) {
-    let sourceX, sourceY;
     let sourcePos = getPlanetCurrentWorldCoordinates(sourcePlanet);
-    sourceX = sourcePos.x;
-    sourceY = sourcePos.y;
+    let sourceX = sourcePos.x;
+    let sourceY = sourcePos.y;
 
-    let targetX, targetY;
     let targetPos = getPlanetCurrentWorldCoordinates(targetPlanet);
-    targetX = targetPos.x;
-    targetY = targetPos.y;
+    let targetX = targetPos.x;
+    let targetY = targetPos.y;
 
     const distance = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
     return distance / CONFIG.INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND * 1000;
@@ -758,7 +720,21 @@ function hideModal() {
 function showPlanetControlPanel(planet) {
     if (!planet) return;
     controlPanelPlanetName.textContent = `${planet.name} Controls (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
-    // You can add more planet details or control buttons here later
+    
+    panelUnitsDisplay.textContent = planet.units;
+    panelIncomeDisplay.textContent = CONFIG.PLANET_UNIT_GENERATION_RATE; // Using global rate for now
+    panelSizeDisplay.textContent = planet.radius;
+
+    const numSlots = getBuildingSlots(planet.radius);
+    panelBuildingSlotsCount.textContent = numSlots;
+    panelBuildingSlotsContainer.innerHTML = ''; // Clear existing slots
+    for (let i = 0; i < numSlots; i++) {
+        const slotDiv = document.createElement('div');
+        slotDiv.classList.add('building-slot');
+        slotDiv.textContent = `Slot ${i + 1} (Empty)`;
+        panelBuildingSlotsContainer.appendChild(slotDiv);
+    }
+
     planetControlPanel.classList.add('active');
     gameActive = false; // Pause game while panel is open
 }
@@ -791,11 +767,17 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInputConfirm = document.getElementById('modal-input-confirm');
     modalConfirm = document.getElementById('modal-confirm');
 
-    // NEW UI element assignments
+    // NEW UI element assignments for planet control panel and launch button
     planetControlPanel = document.getElementById('planet-control-panel');
     controlPanelPlanetName = document.getElementById('control-panel-planet-name');
     closeControlPanelButton = document.getElementById('close-control-panel');
     launchAllInvasionsButton = document.getElementById('launch-all-invasions');
+    // NEW assignments for panel content
+    panelUnitsDisplay = document.getElementById('panel-units');
+    panelIncomeDisplay = document.getElementById('panel-income');
+    panelSizeDisplay = document.getElementById('panel-size');
+    panelBuildingSlotsCount = document.getElementById('panel-building-slots-count');
+    panelBuildingSlotsContainer = document.getElementById('panel-building-slots');
 
 
     // Event listeners for modal buttons
@@ -824,7 +806,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listener for the Launch All Invasions button
     launchAllInvasionsButton.addEventListener('click', () => {
         if (pendingInvasions.length === 0) {
-            // Removed: showModal("No invasions are staged!", 'alert');
             return;
         }
 
@@ -853,7 +834,43 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingInvasions = []; // Clear all staged invasions
         launchAllInvasionsButton.style.display = 'none'; // Hide the button
         updatePlayerUnitDisplay(); // Update player's total unit display if needed
-        // Removed: showModal("All staged invasions launched!", 'alert');
+    });
+
+    // NEW: Event listeners for panel dragging
+    planetControlPanel.addEventListener('mousedown', (e) => {
+        if (e.button === 0) { // Left mouse button
+            isDraggingPanel = true;
+            // Calculate offset from mouse to panel's top-left corner
+            dragPanelOffsetX = e.clientX - planetControlPanel.getBoundingClientRect().left;
+            dragPanelOffsetY = e.clientY - planetControlPanel.getBoundingClientRect().top;
+            planetControlPanel.style.cursor = 'grabbing';
+            e.preventDefault(); // Prevent text selection etc.
+        }
+    });
+
+    planetControlPanel.addEventListener('mousemove', (e) => {
+        if (isDraggingPanel) {
+            // Calculate new position of the panel
+            const newX = e.clientX - dragPanelOffsetX;
+            const newY = e.clientY - dragPanelOffsetY;
+
+            // Apply new position
+            planetControlPanel.style.left = `${newX}px`;
+            planetControlPanel.style.top = `${newY}px`;
+            // Remove transform centering if it was applied via CSS, as we're now controlling position directly
+            planetControlPanel.style.transform = 'none'; 
+            e.preventDefault();
+        }
+    });
+
+    planetControlPanel.addEventListener('mouseup', () => {
+        isDraggingPanel = false;
+        planetControlPanel.style.cursor = 'grab';
+    });
+
+    planetControlPanel.addEventListener('mouseleave', () => {
+        isDraggingPanel = false;
+        planetControlPanel.style.cursor = 'grab';
     });
 
 
@@ -964,8 +981,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 unitsToSend = Math.min(unitsToSend, sourceForCallback.units);
                                 if (unitsToSend === 0) {
                                     showModal("Not enough units available to send any.", 'alert');
-                                    // No need to reset source/line here, as mousedown will handle it (or this callback does for valid cases)
-                                    // Make sure to reset tempFixedInvasionLine even if unitsToSend is 0
+                                    // Make sure to reset tempFixedInvasionLine and selectedSourcePlanet if units are 0
                                     tempFixedInvasionLine = null;
                                     selectedSourcePlanet = null;
                                     canvas.style.cursor = 'default';
@@ -1048,6 +1064,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
+        currentMouseWorldY = e.clientY - canvas.height / 2; // Fixed this previously
+
+        // Correction: Recalculate currentMouseWorldY correctly relative to canvas center and zoom
         currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
 
         if (isDrawingInvasionLine) { // Only true when selecting target (cursor-following)
@@ -1074,12 +1093,16 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mouseup', (e) => {
         if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
-        // isDrawingInvasionLine is reset by mousedown logic itself or modal callback
+        isDraggingPanel = false; // Reset panel dragging
+        planetControlPanel.style.cursor = 'grab'; // Reset panel cursor
     });
 
     canvas.addEventListener('mouseleave', () => {
         if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
+        isDraggingPanel = false; // Reset panel dragging
+        planetControlPanel.style.cursor = 'grab'; // Reset panel cursor
+
         // If mouse leaves canvas during line drawing, cancel selection
         if (isDrawingInvasionLine) {
             selectedSourcePlanet = null;
