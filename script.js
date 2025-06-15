@@ -56,7 +56,7 @@ const CONFIG = {
     
     // Production Rates
     PLANET_BASE_UNIT_PRODUCTION_RATE: 5,
-    PLANET_BASE_INCOME_PRODUCTION_RATE: 5, // More balanced income (changed from 1 to 5)
+    PLANET_BASE_INCOME_PRODUCTION_RATE: 5,
 
     OWNER_COLORS: {
         'player': '#00ff00',
@@ -74,6 +74,9 @@ const CONFIG = {
     // Fleet ball size configuration
     FLEET_BASE_RADIUS: 5,
     FLEET_MAX_SCREEN_RADIUS_PX: 15,
+
+    // NEW: Planet click radius multiplier
+    PLANET_CLICK_RADIUS_MULTIPLIER: 1.5,
 
     // Building Costs and Effects
     BUILDINGS: {
@@ -160,10 +163,11 @@ let modalInputArea;
 let modalInput;
 let modalInputConfirm;
 let modalConfirm;
+let modalInputCancelButton; // NEW
 
 // UI element references for planet control panel and launch button
 let planetControlPanel;
-let controlPanelPlanetName;
+let controlPanelName; // Renamed from controlPanelPlanetName
 let closeControlPanelXButton;
 let launchAllInvasionsButton;
 let panelUnitsDisplay;
@@ -173,14 +177,13 @@ let panelSizeDisplay;
 let panelBuildingSlotsCount;
 let panelBuildingSlotsContainer;
 
-// Building Selection Modal UI elements
-let buildingSelectionModalBackdrop;
-let buildingSelectionModal;
-let closeBuildingSelectionXButton;
-let buildingSelectionPlanetName;
-let buildingButtonsContainer;
+// Building Options Sub-panel UI elements
+let buildingOptionsSubpanel; // Renamed from buildingSelectionModal
+let closeBuildingOptionsXButton; // Renamed from closeBuildingSelectionXButton
+let buildingOptionsPlanetName; // Renamed from buildingSelectionPlanetName
+let buildingOptionsButtonsContainer; // Renamed from buildingButtonsContainer
 
-// Variables to pass context to building selection modal
+// Variables to pass context to building selection modal (now subpanel)
 let currentBuildingSlotPlanet = null;
 let currentBuildingSlotIndex = -1;
 
@@ -273,12 +276,11 @@ function initSolarSystem() {
             // Production rates and buildings
             unitProductionRate: CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE,
             incomeProductionRate: CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE,
-            buildings: [] // Empty array to hold building names
+            buildings: []
         };
 
         // Make all planets start with a Garrison
         newPlanet.buildings.push('Garrison');
-        // Apply Garrison bonus at start to the planet's actual production rate
         newPlanet.unitProductionRate += CONFIG.BUILDINGS.Garrison.unitBonus; 
 
         currentPlanets.push(newPlanet);
@@ -313,16 +315,15 @@ function populatePlanetList() {
             }
             // Check if the clicked planet is already the target planet
             if (planet === camera.targetPlanet) {
-                camera.targetPlanet = null; // Unfocus
-                camera.targetZoom = camera.zoom; // Keep current zoom, just center camera
-                camera.activeListItem = null; // Clear active list item
+                camera.targetPlanet = null;
+                camera.targetZoom = camera.zoom;
+                camera.activeListItem = null;
             } else {
                 listItem.classList.add('active');
                 camera.activeListItem = listItem;
-                camera.targetPlanet = planet; // Focus on the clicked planet
-                camera.targetZoom = camera.zoom; // Keep current zoom
+                camera.targetPlanet = planet;
+                camera.targetZoom = camera.zoom;
 
-                // Immediately center camera on the newly targeted planet
                 let targetPos = getPlanetCurrentWorldCoordinates(planet);
                 camera.x = targetPos.x;
                 camera.y = targetPos.y;
@@ -347,15 +348,6 @@ function updatePlanetListItem(planet) {
 
 
 function updatePlayerUnitDisplay() {
-    // This function currently updates based on chosenStarterPlanet
-    // To show total player units across all planets, you'd need to sum them:
-    // let totalUnits = 0;
-    // currentPlanets.forEach(planet => {
-    //     if (planet.owner === 'player') {
-    //         totalUnits += planet.units;
-    //     }
-    // });
-    // playerUnitCountDisplay.textContent = totalUnits;
     playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
 }
 
@@ -363,10 +355,8 @@ function updatePlayerIncomeDisplay() {
     playerIncomeCountDisplay.textContent = playerIncome;
 }
 
-// Renamed from generatePlanetUnits and updated to handle income and units production
 function generatePlanetProduction() {
     currentPlanets.forEach(planet => {
-        // Calculate current production rates including buildings
         let currentUnitProduction = CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE;
         let currentIncomeProduction = CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE;
 
@@ -380,16 +370,15 @@ function generatePlanetProduction() {
 
         if (planet.owner === 'player') {
             planet.units += currentUnitProduction;
-            playerIncome += currentIncomeProduction; // Player income
-            updatePlanetListItem(planet); // Update units displayed in planet list
+            playerIncome += currentIncomeProduction;
+            updatePlanetListItem(planet);
         } else if (planet.owner === 'ai') {
-            planet.units += currentUnitProduction; // AI units also grow
+            planet.units += currentUnitProduction;
             updatePlanetListItem(planet);
         }
-        // Neutral planets don't produce units/income in this model
     });
-    updatePlayerUnitDisplay(); // Update current player units display
-    updatePlayerIncomeDisplay(); // Update player income display
+    updatePlayerUnitDisplay();
+    updatePlayerIncomeDisplay();
 }
 
 function setInitialCameraZoom() {
@@ -407,7 +396,7 @@ function setInitialCameraZoom() {
 
     camera.zoom = requiredZoom;
     camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-    camera.targetZoom = camera.zoom; // Set target zoom to initial zoom
+    camera.targetZoom = camera.zoom;
 }
 
 // Helper function to get planet at coordinates
@@ -418,12 +407,14 @@ function getPlanetAtCoordinates(worldX, worldY) {
         let planetWorldX = planetPos.x;
         let planetWorldY = planetPos.y;
 
+        // NEW: Increased hitbox size
+        const clickRadius = planet.radius * CONFIG.PLANET_CLICK_RADIUS_MULTIPLIER;
         const distance = Math.sqrt(
             Math.pow(worldX - planetWorldX, 2) +
             Math.pow(worldY - planetWorldY, 2)
         );
 
-        if (distance < planet.radius) {
+        if (distance < clickRadius) {
             return planet;
         }
     }
@@ -433,7 +424,7 @@ function getPlanetAtCoordinates(worldX, worldY) {
 // Helper function to get a planet's current world coordinates
 function getPlanetCurrentWorldCoordinates(planet) {
     let x, y;
-    const systemCenterX = 0; // Assume star is at (0,0) world coords
+    const systemCenterX = 0;
     const systemCenterY = 0;
 
     if (planet.isElliptical) {
@@ -450,7 +441,6 @@ function getPlanetCurrentWorldCoordinates(planet) {
 
 // Helper function to determine building slots
 function getBuildingSlots(planetRadius) {
-    // Example formula: 1 slot per 25 units of radius, minimum 1 slot
     return Math.max(1, Math.floor(planetRadius / 25)); 
 }
 
@@ -481,7 +471,7 @@ function animateSolarSystem() {
         fleet.currentY = sourceY + (targetY - sourceY) * fleet.progress;
 
         if (fleet.progress >= 1) {
-            handleFleetArrival(fleet); // Use generic handler
+            handleFleetArrival(fleet);
             activeFleets.splice(i, 1);
         }
     }
@@ -493,7 +483,6 @@ function animateSolarSystem() {
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
 
-    // FIX: Make camera perfectly center on targeted planet
     if (camera.targetPlanet) {
         let targetPos = getPlanetCurrentWorldCoordinates(camera.targetPlanet);
         camera.x = targetPos.x;
@@ -530,9 +519,7 @@ function animateSolarSystem() {
         } else {
             ctx.arc(systemCenterX, systemCenterY, planet.orbitRadius, 0, Math.PI * 2);
         }
-        // FIX: Owner indicator thickness
-        const ownerIndicatorWidth = Math.min(3 / camera.zoom, 5); // Max 5 pixels thickness when zoomed out
-        ctx.lineWidth = ownerIndicatorWidth;
+        ctx.lineWidth = CONFIG.ORBIT_LINE_WIDTH / camera.zoom;
         ctx.strokeStyle = `rgba(255, 255, 255, ${CONFIG.ORBIT_LINE_ALPHA})`;
         ctx.stroke();
 
@@ -548,31 +535,33 @@ function animateSolarSystem() {
         
         ctx.beginPath();
         ctx.arc(x, y, planet.radius + 5 / camera.zoom, 0, Math.PI * 2);
+        // FIX: Owner indicator thickness
+        const ownerIndicatorBorderWidth = Math.min(3 / camera.zoom, 3); // Max 3 pixels thickness
         ctx.strokeStyle = CONFIG.OWNER_COLORS[planet.owner];
-        ctx.lineWidth = 3 / camera.zoom; // This is the colored border, also fix its thickness
+        ctx.lineWidth = ownerIndicatorBorderWidth;
         ctx.stroke();
 
         // Draw planet name on map
         ctx.save();
-        ctx.translate(x, y); // Translate to planet's center
+        ctx.translate(x, y);
 
-        const nameFontSize = Math.max(12, 20 / camera.zoom); // Dynamic font size for name
-        // FIX: Increased offsets for better text separation
-        const nameOffset = planet.radius + Math.max(15, 20 / camera.zoom); 
+        // FIX: Name and units overlap
+        const nameFontSize = Math.max(12, 20 / camera.zoom);
+        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset
         ctx.font = `${nameFontSize}px 'Space Mono', monospace`; // Immersive font
         ctx.fillStyle = '#0f0';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(planet.name, 0, -nameOffset);
 
-        // NEW: Draw units count on planet
-        const unitsFontSize = Math.max(10, 15 / camera.zoom); // Dynamic font size for units
-        const unitsOffset = nameOffset + Math.max(12, 15 / camera.zoom); // Offset below name
-        ctx.font = `${unitsFontSize}px 'Space Mono', monospace`; // Immersive font
-        ctx.fillStyle = '#0a0'; // Subtle green for units
+        // Draw units count on planet
+        const unitsFontSize = Math.max(10, 15 / camera.zoom);
+        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset
+        ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
+        ctx.fillStyle = '#0a0';
         ctx.fillText(`${planet.units}`, 0, -unitsOffset);
 
-        ctx.restore(); // Restore context
+        ctx.restore();
     });
 
     // Draw the temporary invasion line (following cursor)
@@ -591,16 +580,14 @@ function animateSolarSystem() {
         ctx.beginPath();
         ctx.moveTo(lineStartX, lineStartY);
         ctx.lineTo(lineEndX, lineEndY);
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)'; // Brighter, semi-transparent cyan
-        ctx.lineWidth = 1 / camera.zoom; // Skinny
-        ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]); // Dotted line
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]);
         ctx.stroke();
-        ctx.setLineDash([]); // Reset line dash
-
-        // Arrowhead drawing removed
+        ctx.setLineDash([]);
     }
 
-    // NEW: Draw temporary fixed line when modal is open
+    // Draw temporary fixed line when modal is open
     if (tempFixedInvasionLine) {
         let sourcePos = getPlanetCurrentWorldCoordinates(tempFixedInvasionLine.source);
         let targetPos = getPlanetCurrentWorldCoordinates(tempFixedInvasionLine.target);
@@ -620,13 +607,11 @@ function animateSolarSystem() {
         ctx.beginPath();
         ctx.moveTo(lineStartX, lineStartY);
         ctx.lineTo(lineEndX, lineEndY);
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)'; // Match cursor-following line
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
         ctx.lineWidth = 1 / camera.zoom;
         ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Arrowhead drawing removed
     }
 
 
@@ -650,18 +635,16 @@ function animateSolarSystem() {
         ctx.beginPath();
         ctx.moveTo(lineStartX, lineStartY);
         ctx.lineTo(lineEndX, lineEndY);
-        ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)'; // A subtle green for pending invasions
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)';
         ctx.lineWidth = 1 / camera.zoom;
-        ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]); // Different dash for pending
+        ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Arrowhead drawing removed
     });
 
 
     activeFleets.forEach(fleet => {
-        const fleetRadiusRendered = Math.min(CONFIG.FLEET_BASE_RADIUS / camera.zoom, CONFIG.FLEET_MAX_SCREEN_RADIUS_PX); // Apply max pixel size
+        const fleetRadiusRendered = Math.min(CONFIG.FLEET_BASE_RADIUS / camera.zoom, CONFIG.FLEET_MAX_SCREEN_RADIUS_PX);
         ctx.beginPath();
         ctx.arc(fleet.currentX, fleet.currentY, fleetRadiusRendered, 0, Math.PI * 2);
         ctx.fillStyle = fleet.color;
@@ -689,7 +672,7 @@ function calculateTravelDuration(sourcePlanet, targetPlanet) {
     return distance / CONFIG.INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND * 1000;
 }
 
-// NEW: Generic handler for fleet arrival based on mission
+// Generic handler for fleet arrival based on mission
 function handleFleetArrival(fleet) {
     if (fleet.mission === 'invasion') {
         resolveCombat(fleet);
@@ -698,11 +681,10 @@ function handleFleetArrival(fleet) {
         updatePlanetListItem(fleet.target);
         showModal(`Reinforcements of ${fleet.units} units arrived at ${fleet.target.name}!`, 'alert');
     }
-    // Add other missions here if needed
 }
 
 function resolveCombat(fleet) {
-    console.log(`COMBAT: Resolving combat for fleet from ${fleet.source.name} to ${fleet.target.name}`); // DEBUG
+    console.log(`COMBAT: Resolving combat for fleet from ${fleet.source.name} to ${fleet.target.name}`);
     const attackerUnits = fleet.units;
     const defenderUnitsRaw = fleet.target.units;
     const targetPlanet = fleet.target;
@@ -757,17 +739,19 @@ function showModal(message, type, callback = null) {
         modalInputArea.style.display = 'flex';
         modalConfirm.style.display = 'none';
         modalInputConfirm.style.display = 'block';
-        modalInput.value = ''; // Clear previous input
+        modalInputCancelButton.style.display = 'block'; // Show cancel button for prompt
+        modalInput.value = '';
         modalInput.focus();
     } else {
         modalInputArea.style.display = 'none';
         modalConfirm.style.display = 'block';
         modalInputConfirm.style.display = 'none';
+        modalInputCancelButton.style.display = 'none'; // Hide cancel for alerts
     }
 
     gameModalBackdrop.classList.add('active');
     gameModal.classList.add('active');
-    gameActive = false; // Pause game while modal is open
+    gameActive = false;
     console.log("Modal display state: backdrop active=", gameModalBackdrop.classList.contains('active'), "modal active=", gameModal.classList.contains('active'));
 }
 
@@ -775,73 +759,45 @@ function hideModal() {
     console.log("HIDE MODAL CALLED.");
     gameModalBackdrop.classList.remove('active');
     gameModal.classList.remove('active');
-    gameActive = true; // Resume game after modal closes
+    gameActive = true;
 }
 
-// NEW: Function to show the building selection modal
-function showBuildingSelectionModal(planet, slotIndex) {
-    buildingSelectionPlanetName.textContent = `Build on ${planet.name} (Slot ${slotIndex + 1})`;
-    buildingButtonsContainer.innerHTML = ''; // Clear previous buttons
-
-    for (const buildingType in CONFIG.BUILDINGS) {
-        if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
-            const buildingData = CONFIG.BUILDINGS[buildingType];
-            const button = document.createElement('button');
-            button.textContent = `${buildingData.name} (${buildingData.cost} income)`;
-            button.dataset.buildingType = buildingType; // Store type in data attribute
-
-            button.addEventListener('click', () => {
-                executeBuildingConstruction(buildingType, planet, slotIndex);
-                hideBuildingSelectionModal(); // Hide modal after selection
-            });
-            buildingButtonsContainer.appendChild(button);
-        }
-    }
-
-    // Set current context for selection
-    currentBuildingSlotPlanet = planet;
-    currentBuildingSlotIndex = slotIndex;
-
-    buildingSelectionModalBackdrop.classList.add('active');
-    buildingSelectionModal.classList.add('active');
-    // NOTE: gameActive is NOT set to false here so map movement is allowed.
-    // However, if gameActive is false due to gameModal, this won't change it.
+// NEW: Function to show the building options subpanel
+function showBuildingOptionsSubpanel() {
+    buildingOptionsSubpanel.classList.add('active');
+    // Position relative to planet control panel
+    const panelRect = planetControlPanel.getBoundingClientRect();
+    buildingOptionsSubpanel.style.left = `${panelRect.width}px`; // Position to the right
+    buildingOptionsSubpanel.style.top = `0px`; // Align to top
 }
 
-// NEW: Function to hide the building selection modal
-function hideBuildingSelectionModal() {
-    buildingSelectionModalBackdrop.classList.remove('active');
-    buildingSelectionModal.classList.remove('active');
-    currentBuildingSlotPlanet = null;
-    currentBuildingSlotIndex = -1;
-    // Map movement is already active if gameModal is not up
+// NEW: Function to hide the building options subpanel
+function hideBuildingOptionsSubpanel() {
+    buildingOptionsSubpanel.classList.remove('active');
 }
 
 
-// NEW: Function to execute building construction after selection
+// Function to execute building construction after selection
 function executeBuildingConstruction(buildingType, planet, slotIndex) {
     const buildingData = CONFIG.BUILDINGS[buildingType];
     const cost = buildingData.cost;
 
     if (playerIncome >= cost) {
         playerIncome -= cost;
-        planet.buildings[slotIndex] = buildingType; // Store building name
+        planet.buildings[slotIndex] = buildingType;
 
-        // Apply immediate bonuses
         if (buildingData.unitBonus) {
             planet.unitProductionRate += buildingData.unitBonus;
         }
         if (buildingData.incomeBonus) {
             planet.incomeProductionRate += buildingData.incomeBonus;
         }
-        // Defense bonus is applied in resolveCombat, no direct planet property change here
 
-        updatePlayerIncomeDisplay(); // Update global income display
-        showModal(`${buildingData.name} built on ${planet.name}!`, 'alert');
-        showPlanetControlPanel(planet); // Re-render panel to show new building and updated stats
+        updatePlayerIncomeDisplay();
+        // Removed congratulatory modal
+        showPlanetControlPanel(planet);
     } else {
         showModal("Not enough income to build that!", 'alert');
-        // Re-render panel to show original state, as construction failed
         showPlanetControlPanel(planet); 
     }
 }
@@ -850,12 +806,10 @@ function executeBuildingConstruction(buildingType, planet, slotIndex) {
 // Functions for planet control panel
 function showPlanetControlPanel(planet) {
     if (!planet) return;
-    // Removed 'Controls' from the panel name
-    controlPanelPlanetName.textContent = `${planet.name} (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
+    controlPanelName.textContent = `${planet.name} (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
     
     panelUnitsDisplay.textContent = planet.units;
 
-    // Calculate current production rates including buildings
     let currentUnitProductionRate = CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE;
     let currentIncomeProductionRate = CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE;
 
@@ -883,18 +837,33 @@ function showPlanetControlPanel(planet) {
         if (buildingInSlot) {
             slotDiv.textContent = buildingInSlot;
             slotDiv.classList.add('occupied');
-            // Optionally, add an upgrade/destroy button here
         } else {
             slotDiv.textContent = `Empty Slot ${i + 1}`;
-            slotDiv.classList.remove('occupied'); // Ensure it's not marked occupied
+            slotDiv.classList.remove('occupied');
             
-            // Allow building selection only if player owns the planet
             if (planet.owner === 'player') {
+                // Clicking an empty slot opens the building options subpanel
                 slotDiv.addEventListener('click', () => {
-                    showBuildingSelectionModal(planet, i); // Open building selection modal
+                    hideBuildingOptionsSubpanel(); // Hide previous options if open
+                    showBuildingOptionsSubpanel();
+                    // Set current context for building options
+                    buildingOptionsPlanetName.textContent = `Build on ${planet.name} (Slot ${i + 1})`;
+                    buildingOptionsButtonsContainer.innerHTML = ''; // Clear existing buttons
+                    for (const buildingType in CONFIG.BUILDINGS) {
+                        if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
+                            const buildingData = CONFIG.BUILDINGS[buildingType];
+                            const button = document.createElement('button');
+                            button.textContent = `${buildingData.name} (${buildingData.cost} income)`;
+                            button.dataset.buildingType = buildingType;
+                            button.addEventListener('click', () => {
+                                executeBuildingConstruction(buildingType, planet, i);
+                                hideBuildingOptionsSubpanel(); // Hide subpanel after selection
+                            });
+                            buildingOptionsButtonsContainer.appendChild(button);
+                        }
+                    }
                 });
             } else {
-                // If not player owned, make it unclickable or show a message
                 slotDiv.style.cursor = 'default';
             }
         }
@@ -902,12 +871,13 @@ function showPlanetControlPanel(planet) {
     }
 
     planetControlPanel.classList.add('active');
-    // Removed gameActive = false here so map movement is allowed
+    // When showing main panel, hide subpanel
+    hideBuildingOptionsSubpanel(); 
 }
 
 function hidePlanetControlPanel() {
     planetControlPanel.classList.remove('active');
-    // Removed gameActive = true here as map movement is not blocked by panel
+    hideBuildingOptionsSubpanel(); // Ensure subpanel is also hidden
 }
 
 
@@ -932,13 +902,13 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInput = document.getElementById('modal-input');
     modalInputConfirm = document.getElementById('modal-input-confirm');
     modalConfirm = document.getElementById('modal-confirm');
+    modalInputCancelButton = document.getElementById('modal-input-cancel'); // NEW
 
     // UI element assignments for planet control panel and launch button
     planetControlPanel = document.getElementById('planet-control-panel');
-    controlPanelPlanetName = document.getElementById('control-panel-planet-name');
+    controlPanelName = document.getElementById('control-panel-planet-name'); // Renamed
     closeControlPanelXButton = document.getElementById('close-control-panel-x');
     launchAllInvasionsButton = document.getElementById('launch-all-invasions');
-    // Assignments for panel content
     panelUnitsDisplay = document.getElementById('panel-units');
     panelUnitProductionRateDisplay = document.getElementById('panel-unit-production-rate');
     panelIncomeRateDisplay = document.getElementById('panel-income-rate');
@@ -946,12 +916,11 @@ document.addEventListener('DOMContentLoaded', () => {
     panelBuildingSlotsCount = document.getElementById('panel-building-slots-count');
     panelBuildingSlotsContainer = document.getElementById('panel-building-slots');
 
-    // Building Selection Modal UI element assignments
-    buildingSelectionModalBackdrop = document.getElementById('building-selection-modal-backdrop');
-    buildingSelectionModal = document.getElementById('building-selection-modal');
-    closeBuildingSelectionXButton = document.getElementById('close-building-selection-x');
-    buildingSelectionPlanetName = document.getElementById('building-selection-planet-name');
-    buildingButtonsContainer = document.getElementById('building-buttons-container');
+    // Building Options Sub-panel UI element assignments
+    buildingOptionsSubpanel = document.getElementById('building-options-subpanel'); // Renamed
+    closeBuildingOptionsXButton = document.getElementById('close-building-options-x'); // Renamed
+    buildingOptionsPlanetName = document.getElementById('building-selection-planet-name'); // Renamed
+    buildingOptionsButtonsContainer = document.getElementById('building-options-buttons'); // Renamed
 
 
     // Event listeners for modal buttons
@@ -968,7 +937,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const parsedValue = parseInt(value);
         hideModal();
         if (modalCallback) {
-            // Check if input is a number (e.g., units for invasion) or string (e.g., building type)
             if (!isNaN(parsedValue) && value.trim() !== '') {
                 modalCallback(parsedValue); 
             } else {
@@ -978,14 +946,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // NEW: Event listener for the modal input cancel button
+    modalInputCancelButton.addEventListener('click', () => {
+        hideModal();
+        // Reset invasion line state if a prompt was cancelled
+        if (tempFixedInvasionLine || selectedSourcePlanet) {
+            tempFixedInvasionLine = null;
+            selectedSourcePlanet = null;
+            isDrawingInvasionLine = false;
+            canvas.style.cursor = 'default';
+        }
+        modalCallback = null; // Clear callback to prevent accidental execution
+    });
+
+
     // Event listener for the planet control panel 'X' button
     closeControlPanelXButton.addEventListener('click', () => {
         hidePlanetControlPanel();
     });
 
-    // Event listener for the building selection modal 'X' button
-    closeBuildingSelectionXButton.addEventListener('click', () => {
-        hideBuildingSelectionModal();
+    // Event listener for the building options subpanel 'X' button
+    closeBuildingOptionsXButton.addEventListener('click', () => {
+        hideBuildingOptionsSubpanel();
     });
 
     // Event listener for the Launch All Invasions button
@@ -995,11 +977,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pendingInvasions.forEach(pending => {
-            // Deduct units from source planet
             pending.source.units -= pending.units;
-            updatePlanetListItem(pending.source); // Update source planet units in list
+            updatePlanetListItem(pending.source);
 
-            // Create active fleet
             let sourcePos = getPlanetCurrentWorldCoordinates(pending.source);
             let sourcePlanetWorldX = sourcePos.x;
             let sourcePlanetWorldY = sourcePos.y;
@@ -1012,21 +992,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 travelDuration: calculateTravelDuration(pending.source, pending.target),
                 currentX: sourcePlanetWorldX,
                 currentY: sourcePlanetWorldY,
-                mission: pending.mission // Pass the mission type
+                mission: pending.mission
             });
         });
 
-        pendingInvasions = []; // Clear all staged invasions
-        launchAllInvasionsButton.style.display = 'none'; // Hide the button
-        updatePlayerUnitDisplay(); // Update player's total unit display if needed
+        pendingInvasions = [];
+        launchAllInvasionsButton.style.display = 'none';
+        updatePlayerUnitDisplay();
     });
 
     // Event listeners for panel dragging
     planetControlPanel.addEventListener('mousedown', (e) => {
-        // Ensure click is on the panel itself or its title, not a child button or input
-        if (e.button === 0 && (e.target === planetControlPanel || e.target.tagName === 'H2')) { // Left mouse button
+        // Ensure click is on the panel background or its title, not a child button or input
+        if (e.button === 0 && (e.target === planetControlPanel || e.target.tagName === 'H2')) {
             isDraggingPanel = true;
-            // Calculate offset from mouse to panel's top-left corner
             dragPanelOffsetX = e.clientX - planetControlPanel.getBoundingClientRect().left;
             dragPanelOffsetY = e.clientY - planetControlPanel.getBoundingClientRect().top;
             planetControlPanel.style.cursor = 'default';
@@ -1036,14 +1015,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     planetControlPanel.addEventListener('mousemove', (e) => {
         if (isDraggingPanel) {
-            // Calculate new position of the panel
             const newX = e.clientX - dragPanelOffsetX;
             const newY = e.clientY - dragPanelOffsetY;
 
-            // Apply new position
             planetControlPanel.style.left = `${newX}px`;
             planetControlPanel.style.top = `${newY}px`;
-            // Remove transform centering if it was applied via CSS, as we're now controlling position directly
             planetControlPanel.style.transform = 'none'; 
             e.preventDefault();
         }
@@ -1090,14 +1066,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         animateSolarSystem();
 
-        // Randomly choose a starter planet
         const randomIndex = Math.floor(Math.random() * currentPlanets.length);
         chosenStarterPlanet = currentPlanets[randomIndex];
         chosenStarterPlanet.owner = 'player';
         chosenStarterPlanet.units = CONFIG.INITIAL_PLAYER_UNITS;
         updatePlanetListItem(chosenStarterPlanet);
 
-        // Highlight the randomly chosen starter planet in the right panel
         if (chosenStarterPlanet.listItemRef) {
             if (camera.activeListItem) camera.activeListItem.classList.remove('active');
             chosenStarterPlanet.listItemRef.classList.add('active');
@@ -1105,7 +1079,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         camera.targetPlanet = chosenStarterPlanet;
-        // Immediately center camera on the newly targeted planet (starter planet)
         let targetPos = getPlanetCurrentWorldCoordinates(chosenStarterPlanet);
         camera.x = targetPos.x;
         camera.y = targetPos.y;
@@ -1126,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Left-click (LMB) for invasion/reinforcement initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
-        // Block interaction if game is paused (by gameModal) or if click is not directly on canvas
+        // Block interaction if game is paused (by gameModal or building selection modal) or if click is not directly on canvas
         if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active') || e.target !== canvas) {
             return;
         }
@@ -1170,12 +1143,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                             source: sourceForCallback,
                                             target: targetForCallback,
                                             units: unitsToSend,
-                                            mission: 'reinforcement' // Set mission type
+                                            mission: 'reinforcement'
                                         });
                                         launchAllInvasionsButton.style.display = 'block';
                                     }
                                 }
-                                // Reset selection after modal callback logic
                                 tempFixedInvasionLine = null;
                                 selectedSourcePlanet = null;
                                 isDrawingInvasionLine = false;
@@ -1206,12 +1178,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                             source: sourceForCallback,
                                             target: targetForCallback,
                                             units: unitsToSend,
-                                            mission: 'invasion' // Set mission type
+                                            mission: 'invasion'
                                         });
                                         launchAllInvasionsButton.style.display = 'block';
                                     }
                                 }
-                                // Reset selection after modal callback logic
                                 tempFixedInvasionLine = null;
                                 selectedSourcePlanet = null;
                                 isDrawingInvasionLine = false;
@@ -1222,7 +1193,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else { // Clicked empty space while source was selected
                     // Just ends the line, no modal
                 }
-                // Reset selection immediately if no modal or modal handled by its callback
                 if (!gameModalBackdrop.classList.contains('active') && !buildingSelectionModalBackdrop.classList.contains('active')) {
                     selectedSourcePlanet = null;
                     isDrawingInvasionLine = false;
@@ -1268,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (clickedPlanet) {
             hideModal();
-            hideBuildingSelectionModal(); // Hide building selection modal if open
+            hideBuildingSelectionModal();
             hidePlanetControlPanel();
             showPlanetControlPanel(clickedPlanet);
         } else {
