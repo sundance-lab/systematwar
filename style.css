@@ -213,7 +213,9 @@ body {
     gap: 10px;
 }
 
-.game-modal input[type="number"] { /* Changed to type="text" in HTML, but keeping this for styling general inputs if needed */
+/* Style for general input fields */
+.game-modal input[type="text"],
+.game-modal input[type="number"] {
     width: 100%;
     padding: 8px;
     background-color: rgba(0, 0, 0, 0.5);
@@ -223,14 +225,11 @@ body {
     border-radius: 4px;
 }
 
-.game-modal input[type="text"] { /* NEW: styling for text input */
-    width: 100%;
-    padding: 8px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 1px solid #0f0;
-    color: #fff;
-    font-size: 1em;
-    border-radius: 4px;
+.game-modal .modal-buttons-row { /* NEW: for OK/Cancel buttons */
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    margin-top: 10px;
 }
 
 .game-modal button {
@@ -253,10 +252,17 @@ body {
     position: absolute; /* Keep absolute for dragging */
     width: 300px;
     min-height: 250px; 
-    padding: 20px;
-    box-sizing: border-box;
-    text-align: center;
+    padding: 15px 25px; /* Adjusted padding */
+    border: 2px solid #0f0;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.85);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+    z-index: 100; /* Ensure it's above canvas */
+    display: none;
     cursor: default; /* Changed to default */
+    /* Position will be set by JS on show */
+    /* top: 50%; left: 50%; transform: translate(-50%, -50%); */ /* Removed for JS control */
+    text-align: center;
 }
 
 /* Add specific styles for elements within the control panel */
@@ -308,9 +314,9 @@ body {
     color: rgba(0, 255, 0, 0.7);
     text-align: center;
     min-width: 80px;
-    flex-direction: column; /* To stack button if needed later */
+    flex-direction: column;
     align-items: center;
-    cursor: pointer; /* To indicate clickable slots */
+    cursor: pointer;
 }
 
 .building-slot.occupied {
@@ -364,22 +370,43 @@ body {
     transform: scale(1.05);
 }
 
-/* NEW: Building selection modal specific styles */
-#building-selection-modal h3 {
+/* Building Options Sub-panel (Extension) */
+.in-game-subpanel {
+    position: absolute;
+    top: 0;
+    /* This will be positioned relative to its parent (planet-control-panel) by JS */
+    /* right: -250px; /* Example fixed offset from parent right edge */
+    width: 240px; /* Width of the subpanel */
+    height: 100%; /* Same height as parent panel */
+    background-color: rgba(0, 0, 0, 0.9);
+    border-left: 2px solid #0f0; /* Visual separation */
+    padding: 15px;
+    box-sizing: border-box;
+    display: none; /* Hidden by default */
+    z-index: 102; /* Above main panel content, but below its own X button if parent has 100 */
+    overflow-y: auto;
+    text-align: center; /* Center content */
+}
+
+.in-game-subpanel.active {
+    display: block;
+}
+
+.in-game-subpanel h3 {
     color: #00ff00;
     margin-top: 0;
     margin-bottom: 10px;
     font-size: 1.3em;
 }
 
-#building-buttons-container {
+#building-options-buttons {
     display: flex;
     flex-direction: column;
     gap: 10px;
     margin-top: 15px;
 }
 
-#building-buttons-container button {
+#building-options-buttons button {
     padding: 10px 15px;
     font-size: 1em;
     background-color: #005000; /* Slightly darker green */
@@ -390,6 +417,6 @@ body {
     transition: background-color 0.2s ease;
 }
 
-#building-buttons-container button:hover {
+#building-options-buttons button:hover {
     background-color: #003000;
 }
