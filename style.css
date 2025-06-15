@@ -213,7 +213,17 @@ body {
     gap: 10px;
 }
 
-.game-modal input[type="number"] {
+.game-modal input[type="number"] { /* Changed to type="text" in HTML, but keeping this for styling general inputs if needed */
+    width: 100%;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid #0f0;
+    color: #fff;
+    font-size: 1em;
+    border-radius: 4px;
+}
+
+.game-modal input[type="text"] { /* NEW: styling for text input */
     width: 100%;
     padding: 8px;
     background-color: rgba(0, 0, 0, 0.5);
@@ -241,8 +251,6 @@ body {
 /* Planet Control Panel Styling */
 #planet-control-panel {
     position: absolute; /* Keep absolute for dragging */
-    /* top: 50%; left: 50%; /* Initial positioning will be set by JS */
-    /* transform: translate(-50%, -50%); /* Removed for JS dragging */
     width: 300px;
     min-height: 250px; 
     padding: 20px;
@@ -317,7 +325,7 @@ body {
     padding: 4px 8px;
 }
 
-/* NEW: Close button for panel (X icon) */
+/* Close button for panel (X icon) */
 .close-button-x {
     position: absolute;
     top: 5px;
@@ -354,4 +362,34 @@ body {
 #launch-all-invasions:hover {
     background-color: #006400;
     transform: scale(1.05);
+}
+
+/* NEW: Building selection modal specific styles */
+#building-selection-modal h3 {
+    color: #00ff00;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.3em;
+}
+
+#building-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+#building-buttons-container button {
+    padding: 10px 15px;
+    font-size: 1em;
+    background-color: #005000; /* Slightly darker green */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#building-buttons-container button:hover {
+    background-color: #003000;
 }
