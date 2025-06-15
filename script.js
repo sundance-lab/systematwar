@@ -75,7 +75,7 @@ const CONFIG = {
     FLEET_BASE_RADIUS: 5,
     FLEET_MAX_SCREEN_RADIUS_PX: 15,
 
-    // NEW: Planet click radius multiplier
+    // Planet click radius multiplier
     PLANET_CLICK_RADIUS_MULTIPLIER: 1.5,
 
     // Building Costs and Effects
@@ -163,11 +163,11 @@ let modalInputArea;
 let modalInput;
 let modalInputConfirm;
 let modalConfirm;
-let modalInputCancelButton; // NEW
+let modalInputCancelButton;
 
 // UI element references for planet control panel and launch button
 let planetControlPanel;
-let controlPanelName; // Renamed from controlPanelPlanetName
+let controlPanelName;
 let closeControlPanelXButton;
 let launchAllInvasionsButton;
 let panelUnitsDisplay;
@@ -177,11 +177,11 @@ let panelSizeDisplay;
 let panelBuildingSlotsCount;
 let panelBuildingSlotsContainer;
 
-// Building Options Sub-panel UI elements
-let buildingOptionsSubpanel; // Renamed from buildingSelectionModal
-let closeBuildingOptionsXButton; // Renamed from closeBuildingSelectionXButton
-let buildingOptionsPlanetName; // Renamed from buildingSelectionPlanetName
-let buildingOptionsButtonsContainer; // Renamed from buildingButtonsContainer
+// Building Options Sub-panel UI elements (renamed from Building Selection Modal)
+let buildingOptionsSubpanel;
+let closeBuildingOptionsXButton;
+let buildingOptionsPlanetName;
+let buildingOptionsButtonsContainer;
 
 // Variables to pass context to building selection modal (now subpanel)
 let currentBuildingSlotPlanet = null;
@@ -535,8 +535,7 @@ function animateSolarSystem() {
         
         ctx.beginPath();
         ctx.arc(x, y, planet.radius + 5 / camera.zoom, 0, Math.PI * 2);
-        // FIX: Owner indicator thickness
-        const ownerIndicatorBorderWidth = Math.min(3 / camera.zoom, 3); // Max 3 pixels thickness
+        const ownerIndicatorBorderWidth = Math.min(3 / camera.zoom, 3);
         ctx.strokeStyle = CONFIG.OWNER_COLORS[planet.owner];
         ctx.lineWidth = ownerIndicatorBorderWidth;
         ctx.stroke();
@@ -545,17 +544,17 @@ function animateSolarSystem() {
         ctx.save();
         ctx.translate(x, y);
 
-        // FIX: Name and units overlap
-        const nameFontSize = Math.max(12, 20 / camera.zoom);
+        // FIX: Name and units overlap - adjusted font sizes and offsets
+        const nameFontSize = Math.max(10, 18 / camera.zoom); // Made smaller
         const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset
-        ctx.font = `${nameFontSize}px 'Space Mono', monospace`; // Immersive font
+        ctx.font = `${nameFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = '#0f0';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(planet.name, 0, -nameOffset);
 
         // Draw units count on planet
-        const unitsFontSize = Math.max(10, 15 / camera.zoom);
+        const unitsFontSize = Math.max(8, 12 / camera.zoom); // Made smaller
         const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset
         ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = '#0a0';
@@ -746,7 +745,7 @@ function showModal(message, type, callback = null) {
         modalInputArea.style.display = 'none';
         modalConfirm.style.display = 'block';
         modalInputConfirm.style.display = 'none';
-        modalInputCancelButton.style.display = 'none'; // Hide cancel for alerts
+        modalInputCancelButton.style.display = 'none';
     }
 
     gameModalBackdrop.classList.add('active');
@@ -765,7 +764,8 @@ function hideModal() {
 // NEW: Function to show the building options subpanel
 function showBuildingOptionsSubpanel() {
     buildingOptionsSubpanel.classList.add('active');
-    // Position relative to planet control panel
+    // Set position relative to planet control panel
+    // These values might need fine-tuning based on actual CSS dimensions
     const panelRect = planetControlPanel.getBoundingClientRect();
     buildingOptionsSubpanel.style.left = `${panelRect.width}px`; // Position to the right
     buildingOptionsSubpanel.style.top = `0px`; // Align to top
@@ -794,7 +794,6 @@ function executeBuildingConstruction(buildingType, planet, slotIndex) {
         }
 
         updatePlayerIncomeDisplay();
-        // Removed congratulatory modal
         showPlanetControlPanel(planet);
     } else {
         showModal("Not enough income to build that!", 'alert');
@@ -842,13 +841,11 @@ function showPlanetControlPanel(planet) {
             slotDiv.classList.remove('occupied');
             
             if (planet.owner === 'player') {
-                // Clicking an empty slot opens the building options subpanel
                 slotDiv.addEventListener('click', () => {
-                    hideBuildingOptionsSubpanel(); // Hide previous options if open
-                    showBuildingOptionsSubpanel();
-                    // Set current context for building options
+                    hideBuildingOptionsSubpanel();
+                    // Set current context for building options (for the subpanel title)
                     buildingOptionsPlanetName.textContent = `Build on ${planet.name} (Slot ${i + 1})`;
-                    buildingOptionsButtonsContainer.innerHTML = ''; // Clear existing buttons
+                    buildingOptionsButtonsContainer.innerHTML = '';
                     for (const buildingType in CONFIG.BUILDINGS) {
                         if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
                             const buildingData = CONFIG.BUILDINGS[buildingType];
@@ -857,11 +854,12 @@ function showPlanetControlPanel(planet) {
                             button.dataset.buildingType = buildingType;
                             button.addEventListener('click', () => {
                                 executeBuildingConstruction(buildingType, planet, i);
-                                hideBuildingOptionsSubpanel(); // Hide subpanel after selection
+                                hideBuildingOptionsSubpanel();
                             });
                             buildingOptionsButtonsContainer.appendChild(button);
                         }
                     }
+                    showBuildingOptionsSubpanel();
                 });
             } else {
                 slotDiv.style.cursor = 'default';
@@ -871,13 +869,12 @@ function showPlanetControlPanel(planet) {
     }
 
     planetControlPanel.classList.add('active');
-    // When showing main panel, hide subpanel
     hideBuildingOptionsSubpanel(); 
 }
 
 function hidePlanetControlPanel() {
     planetControlPanel.classList.remove('active');
-    hideBuildingOptionsSubpanel(); // Ensure subpanel is also hidden
+    hideBuildingOptionsSubpanel();
 }
 
 
@@ -902,11 +899,11 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInput = document.getElementById('modal-input');
     modalInputConfirm = document.getElementById('modal-input-confirm');
     modalConfirm = document.getElementById('modal-confirm');
-    modalInputCancelButton = document.getElementById('modal-input-cancel'); // NEW
+    modalInputCancelButton = document.getElementById('modal-input-cancel');
 
     // UI element assignments for planet control panel and launch button
     planetControlPanel = document.getElementById('planet-control-panel');
-    controlPanelName = document.getElementById('control-panel-planet-name'); // Renamed
+    controlPanelName = document.getElementById('control-panel-planet-name');
     closeControlPanelXButton = document.getElementById('close-control-panel-x');
     launchAllInvasionsButton = document.getElementById('launch-all-invasions');
     panelUnitsDisplay = document.getElementById('panel-units');
@@ -917,10 +914,10 @@ document.addEventListener('DOMContentLoaded', () => {
     panelBuildingSlotsContainer = document.getElementById('panel-building-slots');
 
     // Building Options Sub-panel UI element assignments
-    buildingOptionsSubpanel = document.getElementById('building-options-subpanel'); // Renamed
-    closeBuildingOptionsXButton = document.getElementById('close-building-options-x'); // Renamed
-    buildingOptionsPlanetName = document.getElementById('building-selection-planet-name'); // Renamed
-    buildingOptionsButtonsContainer = document.getElementById('building-options-buttons'); // Renamed
+    buildingOptionsSubpanel = document.getElementById('building-options-subpanel');
+    closeBuildingOptionsXButton = document.getElementById('close-building-options-x');
+    buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3'); // Assuming h3 is first child with name
+    buildingOptionsButtonsContainer = document.getElementById('building-options-buttons');
 
 
     // Event listeners for modal buttons
@@ -946,17 +943,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // NEW: Event listener for the modal input cancel button
+    // Event listener for the modal input cancel button
     modalInputCancelButton.addEventListener('click', () => {
         hideModal();
-        // Reset invasion line state if a prompt was cancelled
         if (tempFixedInvasionLine || selectedSourcePlanet) {
             tempFixedInvasionLine = null;
             selectedSourcePlanet = null;
             isDrawingInvasionLine = false;
             canvas.style.cursor = 'default';
         }
-        modalCallback = null; // Clear callback to prevent accidental execution
+        modalCallback = null;
     });
 
 
@@ -1003,7 +999,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event listeners for panel dragging
     planetControlPanel.addEventListener('mousedown', (e) => {
-        // Ensure click is on the panel background or its title, not a child button or input
         if (e.button === 0 && (e.target === planetControlPanel || e.target.tagName === 'H2')) {
             isDraggingPanel = true;
             dragPanelOffsetX = e.clientX - planetControlPanel.getBoundingClientRect().left;
@@ -1100,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Left-click (LMB) for invasion/reinforcement initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
         // Block interaction if game is paused (by gameModal or building selection modal) or if click is not directly on canvas
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active') || e.target !== canvas) {
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active') || e.target !== canvas) {
             return;
         }
 
@@ -1193,7 +1188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else { // Clicked empty space while source was selected
                     // Just ends the line, no modal
                 }
-                if (!gameModalBackdrop.classList.contains('active') && !buildingSelectionModalBackdrop.classList.contains('active')) {
+                if (!gameModalBackdrop.classList.contains('active') && !buildingOptionsSubpanel.classList.contains('active')) {
                     selectedSourcePlanet = null;
                     isDrawingInvasionLine = false;
                     canvas.style.cursor = 'default';
@@ -1222,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Right-click (RMB) for planet control panel
     canvas.addEventListener('contextmenu', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
         e.preventDefault();
 
         if (e.target !== canvas) {
@@ -1238,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (clickedPlanet) {
             hideModal();
-            hideBuildingSelectionModal();
+            hideBuildingOptionsSubpanel();
             hidePlanetControlPanel();
             showPlanetControlPanel(clickedPlanet);
         } else {
@@ -1249,7 +1244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
         currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
@@ -1277,7 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
         isDragging = false;
         isDraggingPanel = false;
         planetControlPanel.style.cursor = 'default';
@@ -1285,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
         isDragging = false;
         isDraggingPanel = false;
         planetControlPanel.style.cursor = 'default';
@@ -1298,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingSelectionModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
 
         e.preventDefault();
 
