@@ -28,7 +28,8 @@
             <p>Income: <span id="player-income-count">0</span></p> </div>
 
         <div id="planet-control-panel" class="in-game-panel">
-            <span id="close-control-panel-x" class="close-button-x">X</span> <h2 id="control-panel-planet-name"></h2>
+            <span id="close-control-panel-x" class="close-button-x">X</span>
+            <h2 id="control-panel-planet-name"></h2>
             <p>Units: <span id="panel-units"></span></p>
             <p>Unit Production Rate: <span id="panel-unit-production-rate"></span>/5s</p>
             <p>Income Production Rate: <span id="panel-income-rate"></span>/5s</p>
@@ -36,7 +37,14 @@
             <p>Building Slots: <span id="panel-building-slots-count"></span></p>
             <div id="panel-building-slots">
                 </div>
+            
+            <div id="building-options-subpanel" class="in-game-subpanel">
+                <span id="close-building-options-x" class="close-button-x">X</span>
+                <h3>Choose Building:</h3>
+                <div id="building-options-buttons">
+                    </div>
             </div>
+        </div>
 
         <button id="launch-all-invasions" class="game-button">Launch!</button>
 
@@ -45,23 +53,16 @@
             <div id="game-modal" class="in-game-panel game-modal">
                 <p id="modal-message"></p>
                 <div id="modal-input-area">
-                    <input type="text" id="modal-input"> <button id="modal-input-confirm">OK</button>
+                    <input type="text" id="modal-input">
+                    <div class="modal-buttons-row">
+                        <button id="modal-input-confirm">OK</button>
+                        <button id="modal-input-cancel">Cancel</button> </div>
                 </div>
                 <button id="modal-confirm">OK</button>
             </div>
         </div>
 
-        <div id="building-selection-modal-backdrop" class="game-modal-backdrop">
-            <div id="building-selection-modal" class="in-game-panel game-modal">
-                <span id="close-building-selection-x" class="close-button-x">X</span>
-                <h3 id="building-selection-planet-name"></h3>
-                <p>Choose a building:</p>
-                <div id="building-buttons-container">
-                    </div>
-            </div>
         </div>
-
-    </div>
 
     <script src="script.js"></script>
 </body>
