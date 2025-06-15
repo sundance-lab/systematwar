@@ -45,10 +45,19 @@
             <div id="game-modal" class="in-game-panel game-modal">
                 <p id="modal-message"></p>
                 <div id="modal-input-area">
-                    <input type="number" id="modal-input" min="1" value="1">
-                    <button id="modal-input-confirm">OK</button>
+                    <input type="text" id="modal-input"> <button id="modal-input-confirm">OK</button>
                 </div>
                 <button id="modal-confirm">OK</button>
+            </div>
+        </div>
+
+        <div id="building-selection-modal-backdrop" class="game-modal-backdrop">
+            <div id="building-selection-modal" class="in-game-panel game-modal">
+                <span id="close-building-selection-x" class="close-button-x">X</span>
+                <h3 id="building-selection-planet-name"></h3>
+                <p>Choose a building:</p>
+                <div id="building-buttons-container">
+                    </div>
             </div>
         </div>
 
