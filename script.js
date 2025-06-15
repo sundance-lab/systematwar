@@ -804,8 +804,11 @@ function executeBuildingConstruction(buildingType, planet, slotIndex) {
     }
 }
 
+
+// Functions for planet control panel
 function showPlanetControlPanel(planet) {
     if (!planet) return;
+    console.log("SHOW_PANEL: Attempting to show panel for:", planet.name);
     controlPanelName.textContent = `${planet.name} (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
     
     panelUnitsDisplay.textContent = planet.units;
@@ -827,7 +830,7 @@ function showPlanetControlPanel(planet) {
 
     const numSlots = getBuildingSlots(planet.radius);
     panelBuildingSlotsCount.textContent = numSlots;
-    panelBuildingSlotsContainer.innerHTML = ''; 
+    panelBuildingSlotsContainer.innerHTML = ''; // Clear existing slots
 
     for (let i = 0; i < numSlots; i++) {
         const slotDiv = document.createElement('div');
@@ -868,14 +871,18 @@ function showPlanetControlPanel(planet) {
         panelBuildingSlotsContainer.appendChild(slotDiv);
     }
 
+    // NEW: Set initial position to center of the screen
     planetControlPanel.style.left = '50%';
     planetControlPanel.style.top = '50%';
-    planetControlPanel.style.transform = 'translate(-50%, -50%)'; 
+    planetControlPanel.style.transform = 'translate(-50%, -50%)'; // Center it properly
+
     planetControlPanel.classList.add('active');
+    console.log("SHOW_PANEL: Panel active class added, position set.");
     hideBuildingOptionsSubpanel(); 
 }
 
 function hidePlanetControlPanel() {
+    console.log("HIDE_PANEL: Hiding planet control panel.");
     planetControlPanel.classList.remove('active');
     hideBuildingOptionsSubpanel();
 }
@@ -893,7 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
     planetListPanel = document.getElementById('planet-list-panel');
     planetList = document.getElementById('planet-list');
     playerUnitsPanel = document.getElementById('player-units-panel');
-    playerUnitCountDisplay = document.getElementById('player-unit-count');
     playerIncomeCountDisplay = document.getElementById('player-income-count');
     gameModalBackdrop = document.getElementById('game-modal-backdrop');
     gameModal = document.getElementById('game-modal');
@@ -1219,9 +1225,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Right-click (RMB) for planet control panel
     canvas.addEventListener('contextmenu', (e) => {
+        console.log("RIGHT-CLICK: Contextmenu event fired!");
         // Block interaction if game is paused by a game modal
-        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
-        e.preventDefault();
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) {
+            console.log("RIGHT-CLICK: Game not active or modal open, returning.");
+            return;
+        }
+        e.preventDefault(); // Prevent default browser context menu
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
         // Determine if the click happened ON a UI panel
         const clickedOnControlPanel = e.target === planetControlPanel || e.target.closest('#planet-control-panel');
@@ -1229,26 +1244,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // If click is directly on an open UI panel, do nothing, let its own listeners handle it
         if (clickedOnControlPanel || clickedOnBuildingSubpanel) {
+            console.log("RIGHT-CLICK: Clicked on an active UI panel, returning.");
             return;
         }
 
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
-        const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
-
         const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
+        console.log("RIGHT-CLICK: Clicked planet:", clickedPlanet ? clickedPlanet.name : "None", "at world coordinates:", {worldX, worldY});
 
         if (clickedPlanet) {
             hideModal();
             hideBuildingOptionsSubpanel();
             // If clicking the same planet's panel, close it; otherwise, show the new planet's panel
             if (planetControlPanel.classList.contains('active') && controlPanelName.textContent.includes(clickedPlanet.name)) {
+                console.log("RIGHT-CLICK: Hiding panel for the same planet.");
                 hidePlanetControlPanel();
             } else {
+                console.log("RIGHT-CLICK: Showing panel for new planet:", clickedPlanet.name);
                 showPlanetControlPanel(clickedPlanet);
             }
         } else { // Clicked empty space
+            console.log("RIGHT-CLICK: Clicked empty space. Checking for active panels to hide.");
             // Dismiss open panels if clicking empty space
             if (planetControlPanel.classList.contains('active')) {
                 hidePlanetControlPanel();
