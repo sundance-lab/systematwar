@@ -249,8 +249,8 @@ body {
     padding: 20px;
     box-sizing: border-box;
     text-align: center;
-    /* Added cursor for dragging feedback */
-    cursor: grab;
+    /* Changed cursor for dragging feedback */
+    cursor: pointer; /* Pointer for grab */
 }
 
 /* Add specific styles for elements within the control panel */
@@ -261,7 +261,7 @@ body {
     font-size: 1.5em;
     border-bottom: 1px solid rgba(0, 255, 0, 0.3);
     padding-bottom: 5px;
-    cursor: grab; /* Cursor for dragging on title too */
+    cursor: pointer; /* Pointer for dragging on title too */
 }
 
 #planet-control-panel p {
@@ -285,7 +285,7 @@ body {
     background-color: #006400;
 }
 
-/* NEW: Building Slots Container and individual slot styling */
+/* Building Slots Container and individual slot styling */
 #panel-building-slots {
     margin-top: 10px;
     display: flex;
@@ -300,6 +300,16 @@ body {
     border-radius: 3px;
     font-size: 0.8em;
     color: rgba(0, 255, 0, 0.7);
+    text-align: center;
+    min-width: 80px;
+    flex-direction: column; /* To stack button if needed later */
+    align-items: center;
+}
+
+.building-slot button {
+    margin-top: 5px;
+    font-size: 0.75em;
+    padding: 4px 8px;
 }
 
 
