@@ -29,7 +29,7 @@ const CONFIG = {
     ORBIT_LINE_WIDTH: 0.25,
     ORBIT_LINE_ALPHA: 0.3,
 
-    MIN_ORBIT_SPEED: 0.00002,
+    MIN_ORBIT_SPEED: 0.00005, // Increased minimum orbit speed
     MAX_ORBIT_SPEED: 0.0006,
 
     ELLIPTICAL_ORBIT_CHANCE: 0.15,
@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.02, // Adjusted for smoother movement
-    CAMERA_ZOOM_LERP_FACTOR: 0.02, // Adjusted for smoother zoom
+    CAMERA_FOLLOW_LERP_FACTOR: 0.02,
+    CAMERA_ZOOM_LERP_FACTOR: 0.02,
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -62,7 +62,7 @@ const CONFIG = {
     MAX_ASTEROIDS_ON_SCREEN: 50,
 
     INITIAL_PLAYER_UNITS: 1000,
-    STARTER_PLANET_INITIAL_UNITS: 500,
+    STARTER_PLANET_INITIAL_UNITS: 0,
     NEUTRAL_PLANET_INITIAL_UNITS: 100,
     AI_PLANET_INITIAL_UNITS: 200,
     PLANET_UNIT_GENERATION_RATE: 10,
@@ -77,7 +77,8 @@ const CONFIG = {
     INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND: 500,
     COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001,
     COMBAT_ROUND_DURATION_MS: 100,
-    COMBAT_ATTACKER_BONUS_PERCENT: 0.1,
+    COMBAT_ATTACKER_BONUS_PERCENT: 0, // Attack bonus removed
+    COMBAT_DEFENDER_BONUS_PERCENT: 0.1, // New: Defender bonus
     MIN_UNITS_FOR_AI_PLANET: 50,
 
     ENERGY_GENERATION_PER_PLAYER_PLANET: 1,
@@ -91,9 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('solar-system-canvas');
     const ctx = canvas.getContext('2d');
     const starterPlanetPanel = document.getElementById('starter-planet-panel');
-    // Removed: const planetChosenPanel = document.getElementById('planet-chosen-panel');
-    // Removed: const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
-    // Removed: const confirmPlanetButton = document.getElementById('confirm-planet-button');
     const planetListPanel = document.getElementById('planet-list-panel');
     const planetList = document.getElementById('planet-list');
     const playerUnitsPanel = document.getElementById('player-units-panel');
@@ -131,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectingStarterPlanet = false;
     let gameActive = false;
 
-    let playerUnits = 0;
     let playerEnergy = 0;
     let asteroids = [];
     let chosenStarterPlanet = null;
@@ -156,13 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetPlanet = null;
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
-        playerUnits = CONFIG.INITIAL_PLAYER_UNITS;
         playerEnergy = 0;
         asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
-        updatePlayerUnitDisplay();
-        updatePlayerEnergyDisplay();
+        updatePlayerEnergyDisplay(); // Update energy display
 
         populatePlanetList();
 
@@ -181,8 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (planetUnitGenerationInterval) clearInterval(planetUnitGenerationInterval);
         planetUnitGenerationInterval = setInterval(generatePlanetUnits, CONFIG.PLANET_UNIT_GENERATION_INTERVAL_MS);
     });
-
-    // Removed: confirmPlanetButton.addEventListener block as it's no longer needed
 
     modalConfirm.addEventListener('click', () => {
         console.log("Modal OK clicked."); // DEBUG
@@ -292,16 +285,22 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
-            showModal(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units (max ${chosenStarterPlanet.units}):`, 'prompt', (unitsToSend) => {
+            showModal(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
                 console.log(`CONTEXTMENU: Units to send callback: ${unitsToSend}`); // DEBUG
-                if (isNaN(unitsToSend) || unitsToSend <= 0 || unitsToSend > chosenStarterPlanet.units) {
-                    showModal("Invalid number of units or not enough units available.", 'alert');
-                    return;
+                if (isNaN(unitsToSend) || unitsToSend <= 0) { 
+                    // This validation will be handled by the clamp below
                 }
                 
-                chosenStarterPlanet.units -= unitsToSend;
-                updatePlayerUnitDisplay();
-                updatePlanetListItem(chosenStarterPlanet);
+                // Clamp unitsToSend to available units on the starter planet
+                unitsToSend = Math.min(unitsToSend, chosenStarterPlanet.units);
+                if (unitsToSend === 0) { // If clamped to 0 due to insufficient units
+                    showModal("Not enough units available to send any.", 'alert');
+                    return;
+                }
+
+                chosenStarterPlanet.units -= unitsToSend; // Deduct units from starter planet
+                updatePlayerUnitDisplay(); // Update display
+                updatePlanetListItem(chosenStarterPlanet); // Update list item for units
 
                 let sourcePlanetWorldX, sourcePlanetWorldY;
                 if (chosenStarterPlanet.isElliptical) {
@@ -371,31 +370,30 @@ document.addEventListener('DOMContentLoaded', () => {
         let remainingAttackerUnits = attackerUnits;
         let remainingDefenderUnits = defenderUnits;
 
-        const effectiveAttackerUnits = attackerUnits * (1 + CONFIG.COMBAT_ATTACKER_BONUS_PERCENT);
+        const effectiveAttackerUnits = attackerUnits * (1 + CONFIG.COMBAT_ATTACKER_BONUS_PERCENT); // Attack bonus removed, so this is just attackerUnits
+        const effectiveDefenderUnits = defenderUnits * (1 + CONFIG.COMBAT_DEFENDER_BONUS_PERCENT); // New: Defender bonus added
         
-        if (effectiveAttackerUnits > defenderUnits) {
-            remainingAttackerUnits = Math.round(effectiveAttackerUnits - defenderUnits);
+        if (effectiveAttackerUnits > effectiveDefenderUnits) { // Compare effective units
+            remainingAttackerUnits = Math.round(effectiveAttackerUnits - effectiveDefenderUnits); // Calculate based on effective units
             remainingDefenderUnits = 0;
             winner = 'attacker';
         } else {
-            remainingDefenderUnits = Math.round(defenderUnits - effectiveAttackerUnits);
+            remainingDefenderUnits = Math.round(effectiveDefenderUnits - effectiveAttackerUnits); // Calculate based on effective units
             remainingAttackerUnits = 0;
             winner = 'defender';
         }
 
         if (winner === 'attacker') {
             resultMessage = `Invasion successful! Your ${attackerUnits} units defeated ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
-            resultMessage += `\n${remainingAttackerUnits} units remain and claim the planet for you.`;
+            resultMessage += `\n${remainingAttackerUnits} units fought valiantly and secured the planet.`; // Changed message wording
             targetPlanet.owner = 'player';
-            targetPlanet.units = remainingAttackerUnits;
+            targetPlanet.units = 0; // Attacker's remaining units DO NOT garrison the planet (fight to the last soldier)
             updatePlanetListItem(targetPlanet);
-            playerUnits += remainingAttackerUnits; // Add remaining units to global pool
         } else {
             resultMessage = `Invasion failed! Your ${attackerUnits} units were defeated by ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
             resultMessage += `\n${remainingDefenderUnits} units remain on ${targetPlanet.name}.`;
             targetPlanet.units = remainingDefenderUnits;
             updatePlanetListItem(targetPlanet);
-            // No units return to player if failed
         }
         showModal(resultMessage, 'alert');
     }
@@ -472,19 +470,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (selectingStarterPlanet && clickedPlanet) {
                 chosenStarterPlanet = clickedPlanet;
-                chosenStarterPlanet.owner = 'player'; // Set owner immediately
-                chosenStarterPlanet.units = CONFIG.STARTER_PLANET_INITIAL_UNITS; // Set initial units
-                updatePlanetListItem(chosenStarterPlanet); // Update list entry
+                chosenStarterPlanet.owner = 'player';
+                chosenStarterPlanet.units = CONFIG.INITIAL_PLAYER_UNITS;
+                updatePlanetListItem(chosenStarterPlanet);
 
-                selectingStarterPlanet = false; // Immediately exit selection phase
+                selectingStarterPlanet = false;
                 
-                starterPlanetPanel.classList.remove('active'); // Hide starter prompt panel
-                // The planetListPanel and playerUnitsPanel remain active
+                starterPlanetPanel.classList.remove('active');
                 
                 camera.targetPlanet = chosenStarterPlanet; 
                 camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
 
-                // Start asteroid spawning immediately after selection
+                updatePlayerUnitDisplay();
+
                 if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
                 asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
                 
@@ -500,8 +498,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     if (distance < asteroid.radius) {
-                        playerUnits += CONFIG.ASTEROID_HIT_POINTS;
+                        chosenStarterPlanet.units += CONFIG.ASTEROID_HIT_POINTS;
                         updatePlayerUnitDisplay();
+                        updatePlanetListItem(chosenStarterPlanet);
                         asteroids.splice(i, 1);
                         asteroidHit = true;
                         clickHandled = true;
@@ -712,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updatePlayerUnitDisplay() {
-        playerUnitCountDisplay.textContent = playerUnits;
+        playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
     }
 
     function updatePlayerEnergyDisplay() {
@@ -744,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const angleToPlanet = Math.atan2(planetCurrentY - spawnY, planetCurrentX - spawnX);
         const velocityX = Math.cos(angleToPlanet) * asteroidSpeed;
-        const velocityY = Math.sin(angleToPlanet) * asteroidToPlanetSpeed;
+        const velocityY = Math.sin(angleToPlanet) * asteroidSpeed;
 
         asteroids.push({
             x: spawnX,
@@ -792,14 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             asteroid.x += asteroid.velocityX;
             asteroid.y += asteroid.velocityY;
-
-            const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
-            const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
-
-            if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
-                asteroids.splice(i, 1);
-                continue;
-            }
         }
 
         // 3. Update active invasion fleets
