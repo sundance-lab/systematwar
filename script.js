@@ -45,9 +45,8 @@ const CONFIG = {
 
     CAMERA_FOLLOW_LERP_FACTOR: 0.01,
     CAMERA_ZOOM_LERP_FACTOR: 0.01,
-    // CAMERA_FOLLOW_ZOOM_TARGET: 1.5, // Removed as camera no longer changes zoom when focusing
     CAMERA_SNAP_THRESHOLD_DISTANCE: 5,
-    CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01, // Keep for potential future zoom interaction
+    CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
@@ -87,11 +86,57 @@ const CONFIG = {
 };
 
 
+// --- Global Variables (declared at top level for scope) ---
+let currentPlanets = [];
+let currentStarRadius;
+const camera = {
+    x: 0,
+    y: 0,
+    zoom: CONFIG.CAMERA_INITIAL_ZOOM,
+    scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
+    dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
+    targetPlanet: null,
+    activeListItem: null,
+    targetZoom: CONFIG.CAMERA_INITIAL_ZOOM // Initial target zoom
+};
+let isDragging = false;
+let lastMouseX, lastMouseY;
+let selectingStarterPlanet = false;
+let gameActive = false;
+let playerIncome = 0;
+let asteroids = [];
+let chosenStarterPlanet = null;
+let activeFleets = [];
+let animationFrameId;
+let planetCounterInterval = null;
+let asteroidSpawnInterval = null;
+let planetUnitGenerationInterval = null;
+let modalCallback = null;
+
+// UI element references (declared globally, assigned in DOMContentLoaded)
+let titleScreen;
+let gameScreen;
+let playButton;
+let canvas;
+let ctx; // Context for canvas
+let starterPlanetPanel;
+let planetListPanel;
+let planetList;
+let playerUnitsPanel;
+let playerUnitCountDisplay;
+let playerIncomeCountDisplay;
+let gameModalBackdrop;
+let gameModal;
+let modalMessage;
+let modalInputArea;
+let modalInput;
+let modalInputConfirm;
+let modalConfirm;
+
+
 // --- Function Definitions (moved to top for scope) ---
 
 function initSolarSystem() {
-    const canvas = document.getElementById('solar-system-canvas');
-    const ctx = canvas.getContext('2d'); // Get ctx here as it's used
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const originalStarRadius = CONFIG.ORIGINAL_STAR_RADIUS;
@@ -183,7 +228,6 @@ function initSolarSystem() {
 }
 
 function populatePlanetList() {
-    const planetList = document.getElementById('planet-list'); // Get planetList here
     planetList.innerHTML = '';
 
     currentPlanets.forEach((planet, index) => {
@@ -247,12 +291,10 @@ function updatePlanetCounters() {
 }
 
 function updatePlayerUnitDisplay() {
-    const playerUnitCountDisplay = document.getElementById('player-unit-count'); // Get display element here
     playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
 }
 
 function updatePlayerIncomeDisplay() {
-    const playerIncomeCountDisplay = document.getElementById('player-income-count'); // Get display element here
     playerIncomeCountDisplay.textContent = playerIncome;
 }
 
@@ -295,7 +337,6 @@ function spawnAsteroid() {
 }
 
 function setInitialCameraZoom() {
-    const canvas = document.getElementById('solar-system-canvas'); // Get canvas here
     let maxWorldExtent = currentStarRadius;
 
     if (currentPlanets.length > 0) {
@@ -310,13 +351,11 @@ function setInitialCameraZoom() {
 
     camera.zoom = requiredZoom;
     camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-    camera.targetZoom = camera.zoom;
+    camera.targetZoom = camera.zoom; // Set target zoom to initial zoom
 }
 
 
 function animateSolarSystem() {
-    const canvas = document.getElementById('solar-system-canvas');
-    const ctx = canvas.getContext('2d');
     // --- UPDATE PHASE ---
     // 1. Update all planet angles
     currentPlanets.forEach(planet => {
@@ -393,15 +432,16 @@ function animateSolarSystem() {
             Math.pow(targetX - camera.x, 2) +
             Math.pow(targetY - camera.y, 2)
         );
-        // Only check distance for snapping, as zoom is kept constant
+
+        // Snap to target if close enough to remove the slowdown
         if (currentDistance < CONFIG.CAMERA_SNAP_THRESHOLD_DISTANCE) {
             camera.x = targetX;
             camera.y = targetY;
-            // camera.zoom = camera.targetZoom; // Zoom is kept constant by user request
+            camera.zoom = camera.targetZoom; // Ensure zoom is set to target, though it should be constant in this mode
         } else {
             camera.x = camera.x + (targetX - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
             camera.y = camera.y + (targetY - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
-            // camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR; // Zoom is kept constant by user request
+            camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR; // Ensure zoom LERP continues
         }
         camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
     }
@@ -471,7 +511,7 @@ function animateSolarSystem() {
         const fixedFontSizeWorldUnits = 20; // Fixed size in world units
         const fixedTextOffsetWorldUnits = planet.radius + 15; // Fixed offset in world units
 
-        ctx.font = `${fixedFontSizeWorldUnits}px Arial`;
+        ctx.font = `${fixedFontSizeWorldUnits}px Arial`; // Font size is in world units, will scale with zoom
         ctx.fillStyle = '#0f0';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -573,14 +613,6 @@ function resolveCombat(fleet) {
 }
 
 function showModal(message, type, callback = null) {
-    const gameModalBackdrop = document.getElementById('game-modal-backdrop'); // Get elements here
-    const gameModal = document.getElementById('game-modal');
-    const modalMessage = document.getElementById('modal-message');
-    const modalInputArea = document.getElementById('modal-input-area');
-    const modalConfirm = document.getElementById('modal-confirm');
-    const modalInputConfirm = document.getElementById('modal-input-confirm');
-    const modalInput = document.getElementById('modal-input');
-
     console.log(`SHOW MODAL CALLED: Type='${type}', Message='${message}'`);
     modalMessage.textContent = message;
     modalCallback = callback;
@@ -604,8 +636,6 @@ function showModal(message, type, callback = null) {
 }
 
 function hideModal() {
-    const gameModalBackdrop = document.getElementById('game-modal-backdrop'); // Get elements here
-    const gameModal = document.getElementById('game-modal');
     console.log("HIDE MODAL CALLED.");
     gameModalBackdrop.classList.remove('active');
     gameModal.classList.remove('active');
@@ -613,44 +643,28 @@ function hideModal() {
 }
 
 
-// --- Global Variables (must be declared outside functions that use them) ---
-let currentPlanets = [];
-let currentStarRadius;
-const camera = {
-    x: 0,
-    y: 0,
-    zoom: CONFIG.CAMERA_INITIAL_ZOOM,
-    scaleFactor: CONFIG.CAMERA_SCALE_FACTOR,
-    dragSensitivity: CONFIG.CAMERA_DRAG_SENSITIVITY,
-    targetPlanet: null,
-    activeListItem: null,
-    targetZoom: CONFIG.CAMERA_INITIAL_ZOOM
-};
-let isDragging = false;
-let lastMouseX, lastMouseY;
-let selectingStarterPlanet = false;
-let gameActive = false;
-let playerIncome = 0;
-let asteroids = [];
-let chosenStarterPlanet = null;
-let activeFleets = [];
-let animationFrameId;
-let planetCounterInterval = null;
-let asteroidSpawnInterval = null;
-let planetUnitGenerationInterval = null;
-let modalCallback = null;
-
-
 // --- Event Listeners and Initial Game Setup ---
 document.addEventListener('DOMContentLoaded', () => {
-    const playButton = document.getElementById('play-button');
-    const titleScreen = document.getElementById('title-screen');
-    const gameScreen = document.getElementById('game-screen');
-    const canvas = document.getElementById('solar-system-canvas');
-    const starterPlanetPanel = document.getElementById('starter-planet-panel');
-    const planetListPanel = document.getElementById('planet-list-panel');
-    const playerUnitsPanel = document.getElementById('player-units-panel');
-    // Elements for display updates are now passed to functions or accessed directly within them
+    // Assign global UI element references
+    titleScreen = document.getElementById('title-screen');
+    gameScreen = document.getElementById('game-screen');
+    playButton = document.getElementById('play-button');
+    canvas = document.getElementById('solar-system-canvas');
+    ctx = canvas.getContext('2d');
+    starterPlanetPanel = document.getElementById('starter-planet-panel');
+    planetListPanel = document.getElementById('planet-list-panel');
+    planetList = document.getElementById('planet-list');
+    playerUnitsPanel = document.getElementById('player-units-panel');
+    playerUnitCountDisplay = document.getElementById('player-unit-count');
+    playerIncomeCountDisplay = document.getElementById('player-income-count');
+    gameModalBackdrop = document.getElementById('game-modal-backdrop');
+    gameModal = document.getElementById('game-modal');
+    modalMessage = document.getElementById('modal-message');
+    modalInputArea = document.getElementById('modal-input-area');
+    modalInput = document.getElementById('modal-input');
+    modalInputConfirm = document.getElementById('modal-input-confirm');
+    modalConfirm = document.getElementById('modal-confirm');
+
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -714,17 +728,140 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('contextmenu', (e) => {
-        // ... (existing right-click logic) ...
-        // Note: The contextmenu event listener is defined in the global scope
-        // and uses global variables camera, currentPlanets, etc.
+        if (!gameActive) return;
+        e.preventDefault();
+
+        if (gameModalBackdrop.classList.contains('active')) return;
+
+        if (!chosenStarterPlanet) {
+            showModal("You must choose your starter planet first!", 'alert');
+            return;
+        }
+        if (selectingStarterPlanet) {
+            showModal("Please click 'Continue' after choosing your starter planet.", 'alert');
+            return;
+        }
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+        console.log(`CONTEXTMENU: Mouse click world coords: (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
+
+        let targetPlanet = null;
+        for (let i = 0; i < currentPlanets.length; i++) {
+            const planet = currentPlanets[i];
+            let planetWorldX, planetWorldY;
+            if (planet.isElliptical) {
+                const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
+                const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
+                planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+                planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+            } else {
+                planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
+                planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
+            }
+
+            const distance = Math.sqrt(
+                Math.pow(worldX - planetWorldX, 2) +
+                Math.pow(worldY - planetWorldY, 2)
+            );
+
+            if (distance < planet.radius) {
+                targetPlanet = planet;
+                console.log(`CONTEXTMENU: Hit planet: ${planet.name}`);
+                break;
+            }
+        }
+
+        if (targetPlanet) {
+            console.log(`CONTEXTMENU: Target planet detected: ${targetPlanet.name}. Owner: ${targetPlanet.owner}`);
+            if (targetPlanet.owner === 'player') {
+                showModal("You already control this planet!", 'alert');
+                return;
+            }
+            if (chosenStarterPlanet.units === 0) {
+                 showModal("Your home planet has no units to send!", 'alert');
+                 return;
+            }
+
+            showModal(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
+                console.log(`CONTEXTMENU: Units to send callback: ${unitsToSend}`);
+                if (isNaN(unitsToSend) || unitsToSend <= 0) { 
+                    // This validation will be handled by the clamp below
+                }
+                
+                // Clamp unitsToSend to available units on the starter planet
+                unitsToSend = Math.min(unitsToSend, chosenStarterPlanet.units);
+                if (unitsToSend === 0) { // If clamped to 0 due to insufficient units
+                    showModal("Not enough units available to send any.", 'alert');
+                    return;
+                }
+
+                chosenStarterPlanet.units -= unitsToSend;
+                updatePlayerUnitDisplay();
+                updatePlanetListItem(chosenStarterPlanet);
+
+                let sourcePlanetWorldX, sourcePlanetWorldY;
+                if (chosenStarterPlanet.isElliptical) {
+                    const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
+                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+                    sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
+                    sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
+                } else {
+                    sourcePlanetWorldX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+                    sourcePlanetWorldY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
+                }
+
+                activeFleets.push({
+                    source: chosenStarterPlanet,
+                    target: targetPlanet,
+                    units: unitsToSend,
+                    departureTime: performance.now(),
+                    travelDuration: calculateTravelDuration(chosenStarterPlanet, targetPlanet),
+                    currentX: sourcePlanetWorldX,
+                    currentY: sourcePlanetWorldY,
+                    color: CONFIG.OWNER_COLORS['player']
+                });
+
+            });
+
+        } else {
+            // Right-clicking empty space now does nothing
+        }
     });
 
     canvas.addEventListener('wheel', (e) => {
-        // ... (existing wheel logic) ...
+        if (!gameActive) return;
+        if (gameModalBackdrop.classList.contains('active')) return;
+
+        e.preventDefault();
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+
+        const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+        if (e.deltaY < 0) {
+            camera.zoom *= camera.scaleFactor;
+        } else {
+            camera.zoom /= camera.scaleFactor;
+        }
+
+        camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
+        camera.targetZoom = camera.zoom;
+
+        if (!camera.targetPlanet) {
+            const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+            const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+            camera.x -= (worldXAfter - worldXBefore);
+            camera.y -= (worldYAfter - worldYBefore);
+        }
     });
 
     canvas.addEventListener('mousedown', (e) => {
-        // ... (existing mousedown logic, modified for LMB behavior) ...
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
 
@@ -784,26 +921,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // If not an asteroid hit, LMB does nothing for now.
-            // Removed previous LMB planet focusing and dragging logic here.
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        // ... (mousemove logic, dragging disabled for LMB) ...
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
         // isDragging logic removed for LMB
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        // ... (mouseup logic, dragging disabled for LMB) ...
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
         // isDragging logic removed for LMB
     });
 
     canvas.addEventListener('mouseleave', () => {
-        // ... (mouseleave logic, dragging disabled for LMB) ...
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
         // isDragging logic removed for LMB
@@ -811,7 +944,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     window.addEventListener('resize', () => {
-        // ... (existing resize logic) ...
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         if (gameActive) {
@@ -823,6 +955,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initial cursor style
     canvas.style.cursor = 'default';
 });
