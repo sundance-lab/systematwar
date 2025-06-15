@@ -29,7 +29,7 @@ const CONFIG = {
     ORBIT_LINE_WIDTH: 0.25,
     ORBIT_LINE_ALPHA: 0.3,
 
-    MIN_ORBIT_SPEED: 0.00005, // Increased minimum orbit speed
+    MIN_ORBIT_SPEED: 0.00005,
     MAX_ORBIT_SPEED: 0.0006,
 
     ELLIPTICAL_ORBIT_CHANCE: 0.15,
@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.02,
-    CAMERA_ZOOM_LERP_FACTOR: 0.02,
+    CAMERA_FOLLOW_LERP_FACTOR: 0.01, // Adjusted for much smoother movement
+    CAMERA_ZOOM_LERP_FACTOR: 0.01, // Adjusted for much smoother zoom
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -77,11 +77,11 @@ const CONFIG = {
     INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND: 500,
     COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001,
     COMBAT_ROUND_DURATION_MS: 100,
-    COMBAT_ATTACKER_BONUS_PERCENT: 0, // Attack bonus removed
-    COMBAT_DEFENDER_BONUS_PERCENT: 0.1, // New: Defender bonus
+    COMBAT_ATTACKER_BONUS_PERCENT: 0,
+    COMBAT_DEFENDER_BONUS_PERCENT: 0.1,
     MIN_UNITS_FOR_AI_PLANET: 50,
 
-    ENERGY_GENERATION_PER_PLAYER_PLANET: 1,
+    INCOME_GENERATION_PER_PLAYER_PLANET: 1, // Renamed from ENERGY_GENERATION_PER_PLAYER_PLANET
 };
 
 
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const planetList = document.getElementById('planet-list');
     const playerUnitsPanel = document.getElementById('player-units-panel');
     const playerUnitCountDisplay = document.getElementById('player-unit-count');
-    const playerEnergyCountDisplay = document.getElementById('player-energy-count');
+    const playerIncomeCountDisplay = document.getElementById('player-income-count'); // Renamed from playerEnergyCountDisplay
 
     const gameModalBackdrop = document.getElementById('game-modal-backdrop');
     const gameModal = document.getElementById('game-modal');
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectingStarterPlanet = false;
     let gameActive = false;
 
-    let playerEnergy = 0;
+    let playerIncome = 0; // Renamed from playerEnergy
     let asteroids = [];
     let chosenStarterPlanet = null;
     let activeFleets = [];
@@ -153,11 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetPlanet = null;
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
-        playerEnergy = 0;
+        playerIncome = 0; // Reset income
         asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
-        updatePlayerEnergyDisplay(); // Update energy display
+        // updatePlayerUnitDisplay() will be called after starter planet selection
+        updatePlayerIncomeDisplay(); // Update income display
 
         populatePlanetList();
 
@@ -370,22 +371,22 @@ document.addEventListener('DOMContentLoaded', () => {
         let remainingAttackerUnits = attackerUnits;
         let remainingDefenderUnits = defenderUnits;
 
-        const effectiveAttackerUnits = attackerUnits * (1 + CONFIG.COMBAT_ATTACKER_BONUS_PERCENT); // Attack bonus removed, so this is just attackerUnits
-        const effectiveDefenderUnits = defenderUnits * (1 + CONFIG.COMBAT_DEFENDER_BONUS_PERCENT); // New: Defender bonus added
+        const effectiveAttackerUnits = attackerUnits * (1 + CONFIG.COMBAT_ATTACKER_BONUS_PERCENT);
+        const effectiveDefenderUnits = defenderUnits * (1 + CONFIG.COMBAT_DEFENDER_BONUS_PERCENT);
         
-        if (effectiveAttackerUnits > effectiveDefenderUnits) { // Compare effective units
-            remainingAttackerUnits = Math.round(effectiveAttackerUnits - effectiveDefenderUnits); // Calculate based on effective units
+        if (effectiveAttackerUnits > effectiveDefenderUnits) {
+            remainingAttackerUnits = Math.round(effectiveAttackerUnits - effectiveDefenderUnits);
             remainingDefenderUnits = 0;
             winner = 'attacker';
         } else {
-            remainingDefenderUnits = Math.round(effectiveDefenderUnits - effectiveAttackerUnits); // Calculate based on effective units
+            remainingDefenderUnits = Math.round(effectiveDefenderUnits - effectiveAttackerUnits);
             remainingAttackerUnits = 0;
             winner = 'defender';
         }
 
         if (winner === 'attacker') {
             resultMessage = `Invasion successful! Your ${attackerUnits} units defeated ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
-            resultMessage += `\n${remainingAttackerUnits} units fought valiantly and secured the planet.`; // Changed message wording
+            resultMessage += `\n${remainingAttackerUnits} units fought valiantly and secured the planet.`;
             targetPlanet.owner = 'player';
             targetPlanet.units = 0; // Attacker's remaining units DO NOT garrison the planet (fight to the last soldier)
             updatePlanetListItem(targetPlanet);
@@ -509,6 +510,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (!asteroidHit && clickedPlanet) {
+                    // Prevent double-focusing on the same planet
+                    if (clickedPlanet === camera.targetPlanet) {
+                        clickHandled = true;
+                        return; 
+                    }
+
                     if (camera.activeListItem) camera.activeListItem.classList.remove('active');
                     if (clickedPlanet.listItemRef) {
                         clickedPlanet.listItemRef.classList.add('active');
@@ -700,22 +707,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function updatePlanetCounters() {
-        let newlyGeneratedEnergy = 0;
+        let newlyGeneratedIncome = 0; // Renamed from newlyGeneratedEnergy
         currentPlanets.forEach((planet) => {
             if (planet.owner === 'player') {
-                newlyGeneratedEnergy += CONFIG.ENERGY_GENERATION_PER_PLAYER_PLANET;
+                newlyGeneratedIncome += CONFIG.INCOME_GENERATION_PER_PLAYER_PLANET; // Renamed from ENERGY_GENERATION_PER_PLAYER_PLANET
             }
         });
-        playerEnergy += newlyGeneratedEnergy;
-        updatePlayerEnergyDisplay();
+        playerIncome += newlyGeneratedIncome; // Renamed from playerEnergy
+        updatePlayerIncomeDisplay(); // Renamed from updatePlayerEnergyDisplay
     }
 
     function updatePlayerUnitDisplay() {
         playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
     }
 
-    function updatePlayerEnergyDisplay() {
-        playerEnergyCountDisplay.textContent = playerEnergy;
+    function updatePlayerIncomeDisplay() { // Renamed from updatePlayerEnergyDisplay
+        playerIncomeCountDisplay.textContent = playerIncome; // Renamed from playerEnergyCountDisplay
     }
 
     function spawnAsteroid() {
