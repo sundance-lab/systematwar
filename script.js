@@ -474,6 +474,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 chosenStarterPlanet.units = CONFIG.INITIAL_PLAYER_UNITS;
                 updatePlanetListItem(chosenStarterPlanet);
 
+                // Highlight the newly chosen starter planet in the list
+                if (chosenStarterPlanet.listItemRef) {
+                    if (camera.activeListItem) camera.activeListItem.classList.remove('active');
+                    chosenStarterPlanet.listItemRef.classList.add('active');
+                    camera.activeListItem = chosenStarterPlanet.listItemRef;
+                }
+
                 selectingStarterPlanet = false;
                 
                 starterPlanetPanel.classList.remove('active');
