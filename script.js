@@ -157,6 +157,7 @@ let starterPlanetPanel;
 let planetListPanel;
 let planetList;
 let playerUnitsPanel;
+let playerUnitCountDisplay;
 let playerIncomeCountDisplay;
 let gameModalBackdrop;
 let gameModal;
@@ -350,7 +351,11 @@ function updatePlanetListItem(planet) {
 
 
 function updatePlayerUnitDisplay() {
-    playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
+    if (playerUnitCountDisplay) { // Defensive check
+        playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
+    } else {
+        console.error("ERROR: playerUnitCountDisplay element is null or undefined when trying to update unit display.");
+    }
 }
 
 function updatePlayerIncomeDisplay() {
@@ -890,6 +895,7 @@ function hidePlanetControlPanel() {
 
 // --- Event Listeners and Initial Game Setup ---
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM CONTENT LOADED: Starting UI element assignments.");
     // Assign global UI element references
     titleScreen = document.getElementById('title-screen');
     gameScreen = document.getElementById('game-screen');
@@ -900,6 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
     planetListPanel = document.getElementById('planet-list-panel');
     planetList = document.getElementById('planet-list');
     playerUnitsPanel = document.getElementById('player-units-panel');
+    playerUnitCountDisplay = document.getElementById('player-unit-count');
     playerIncomeCountDisplay = document.getElementById('player-income-count');
     gameModalBackdrop = document.getElementById('game-modal-backdrop');
     gameModal = document.getElementById('game-modal');
@@ -928,6 +935,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3');
     buildingOptionsButtonsContainer = document.getElementById('building-options-buttons');
 
+    console.log("DOM CONTENT LOADED: Finished UI element assignments. playerUnitCountDisplay:", playerUnitCountDisplay);
 
     // Event listeners for modal buttons
     modalConfirm.addEventListener('click', () => {
@@ -943,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const parsedValue = parseInt(value);
         hideModal();
         if (modalCallback) {
-            if (!isNaN(parsedValue) && value.trim() !== '') {
+            if (!isNaN(parsedValue) || value.trim() !== '') { // Corrected condition
                 modalCallback(parsedValue); 
             } else {
                 modalCallback(value);
