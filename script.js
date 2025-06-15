@@ -177,7 +177,7 @@ let panelSizeDisplay;
 let panelBuildingSlotsCount;
 let panelBuildingSlotsContainer;
 
-// Building Options Sub-panel UI elements (renamed from Building Selection Modal)
+// Building Options Sub-panel UI elements
 let buildingOptionsSubpanel;
 let closeBuildingOptionsXButton;
 let buildingOptionsPlanetName;
@@ -407,7 +407,7 @@ function getPlanetAtCoordinates(worldX, worldY) {
         let planetWorldX = planetPos.x;
         let planetWorldY = planetPos.y;
 
-        // NEW: Increased hitbox size
+        // Increased hitbox size
         const clickRadius = planet.radius * CONFIG.PLANET_CLICK_RADIUS_MULTIPLIER;
         const distance = Math.sqrt(
             Math.pow(worldX - planetWorldX, 2) +
@@ -546,18 +546,18 @@ function animateSolarSystem() {
 
         // FIX: Name and units overlap - adjusted font sizes and offsets
         const nameFontSize = Math.max(10, 18 / camera.zoom); // Made smaller
-        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset
-        ctx.font = `${nameFontSize}px 'Space Mono', monospace`;
-        ctx.fillStyle = '#0f0';
+        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset for name
+        ctx.font = `${nameFontSize}px 'Space Mono', monospace`; // Immersive font
+        ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(planet.name, 0, -nameOffset);
 
         // Draw units count on planet
         const unitsFontSize = Math.max(8, 12 / camera.zoom); // Made smaller
-        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset
+        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset for units
         ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
-        ctx.fillStyle = '#0a0';
+        ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.fillText(`${planet.units}`, 0, -unitsOffset);
 
         ctx.restore();
@@ -761,17 +761,15 @@ function hideModal() {
     gameActive = true;
 }
 
-// NEW: Function to show the building options subpanel
+// Function to show the building options subpanel
 function showBuildingOptionsSubpanel() {
     buildingOptionsSubpanel.classList.add('active');
-    // Set position relative to planet control panel
-    // These values might need fine-tuning based on actual CSS dimensions
     const panelRect = planetControlPanel.getBoundingClientRect();
-    buildingOptionsSubpanel.style.left = `${panelRect.width}px`; // Position to the right
-    buildingOptionsSubpanel.style.top = `0px`; // Align to top
+    buildingOptionsSubpanel.style.left = `${panelRect.width}px`;
+    buildingOptionsSubpanel.style.top = `0px`;
 }
 
-// NEW: Function to hide the building options subpanel
+// Function to hide the building options subpanel
 function hideBuildingOptionsSubpanel() {
     buildingOptionsSubpanel.classList.remove('active');
 }
@@ -842,10 +840,10 @@ function showPlanetControlPanel(planet) {
             
             if (planet.owner === 'player') {
                 slotDiv.addEventListener('click', () => {
-                    hideBuildingOptionsSubpanel();
+                    hideBuildingOptionsSubpanel(); // Hide previous options if open
                     // Set current context for building options (for the subpanel title)
                     buildingOptionsPlanetName.textContent = `Build on ${planet.name} (Slot ${i + 1})`;
-                    buildingOptionsButtonsContainer.innerHTML = '';
+                    buildingOptionsButtonsContainer.innerHTML = ''; // Clear existing buttons
                     for (const buildingType in CONFIG.BUILDINGS) {
                         if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
                             const buildingData = CONFIG.BUILDINGS[buildingType];
@@ -915,8 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Building Options Sub-panel UI element assignments
     buildingOptionsSubpanel = document.getElementById('building-options-subpanel');
-    closeBuildingOptionsXButton = document.getElementById('close-building-options-x');
-    buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3'); // Assuming h3 is first child with name
+    closeBuildingOptionsXButton = buildingOptionsSubpanel.querySelector('.close-button-x'); // Get the 'X' button inside the subpanel
+    buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3');
     buildingOptionsButtonsContainer = document.getElementById('building-options-buttons');
 
 
@@ -1094,7 +1092,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Left-click (LMB) for invasion/reinforcement initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
-        // Block interaction if game is paused (by gameModal or building selection modal) or if click is not directly on canvas
         if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active') || e.target !== canvas) {
             return;
         }
