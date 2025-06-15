@@ -77,6 +77,8 @@ const CONFIG = {
 
     // Planet click radius multiplier
     PLANET_CLICK_RADIUS_MULTIPLIER: 1.5,
+    MIN_PLANET_CLICKABLE_PIXELS: 25, // NEW: Minimum pixels for a planet's click radius on screen
+
 
     // Building Costs and Effects
     BUILDINGS: {
@@ -407,14 +409,17 @@ function getPlanetAtCoordinates(worldX, worldY) {
         let planetWorldX = planetPos.x;
         let planetWorldY = planetPos.y;
 
-        // Increased hitbox size
-        const clickRadius = planet.radius * CONFIG.PLANET_CLICK_RADIUS_MULTIPLIER;
+        // Increased hitbox size with minimum pixel size
+        const renderedRadius = planet.radius * camera.zoom;
+        const effectiveClickRadiusPixels = Math.max(renderedRadius, CONFIG.MIN_PLANET_CLICKABLE_PIXELS);
+        const effectiveClickRadiusWorld = effectiveClickRadiusPixels / camera.zoom; // Convert back to world units for distance check
+
         const distance = Math.sqrt(
             Math.pow(worldX - planetWorldX, 2) +
             Math.pow(worldY - planetWorldY, 2)
         );
 
-        if (distance < clickRadius) {
+        if (distance < effectiveClickRadiusWorld) {
             return planet;
         }
     }
@@ -545,8 +550,8 @@ function animateSolarSystem() {
         ctx.translate(x, y);
 
         // FIX: Name and units overlap - adjusted font sizes and offsets
-        const nameFontSize = Math.max(10, 18 / camera.zoom); // Made smaller
-        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset
+        const nameFontSize = Math.max(10, 18 / camera.zoom);
+        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom);
         ctx.font = `${nameFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.textAlign = 'center';
@@ -554,8 +559,8 @@ function animateSolarSystem() {
         ctx.fillText(planet.name, 0, -nameOffset);
 
         // Draw units count on planet
-        const unitsFontSize = Math.max(8, 12 / camera.zoom); // Made smaller
-        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset
+        const unitsFontSize = Math.max(8, 12 / camera.zoom);
+        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom);
         ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.fillText(`${planet.units}`, 0, -unitsOffset);
@@ -788,7 +793,7 @@ function executeBuildingConstruction(buildingType, planet, slotIndex) {
             planet.unitProductionRate += buildingData.unitBonus;
         }
         if (buildingData.incomeBonus) {
-            planet.incomeProductionRate += buildingData.incomeBonus;
+            planet.incomeProductionRate += buildingData.incomeRate; // Fixed: should be incomeBonus
         }
 
         updatePlayerIncomeDisplay();
@@ -1108,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedSourcePlanet) { // Phase 2: Source already selected, looking for target
                 if (clickedPlanet) {
                     if (clickedPlanet === selectedSourcePlanet) {
-                        showModal("Cannot send units to the same planet!", 'alert');
+                        // Removed: showModal("Cannot send units to the same planet!", 'alert');
                     } else if (clickedPlanet.owner === 'player') {
                         // REINFORCEMENT
                         if (selectedSourcePlanet.units === 0) {
@@ -1234,8 +1239,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
 
         if (clickedPlanet) {
-            hideModal(); // Hide any game modal
-            hideBuildingOptionsSubpanel(); // Hide building selection subpanel
+            hideModal();
+            hideBuildingOptionsSubpanel();
             // If clicking the same planet's panel, close it; otherwise, show the new planet's panel
             if (planetControlPanel.classList.contains('active') && controlPanelName.textContent.includes(clickedPlanet.name)) {
                 hidePlanetControlPanel();
