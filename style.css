@@ -240,17 +240,15 @@ body {
 
 /* Planet Control Panel Styling */
 #planet-control-panel {
-    top: 50%;
-    left: 50%;
-    /* No initial transform property here, will be set by JS for dragging */
+    position: absolute; /* Keep absolute for dragging */
+    /* top: 50%; left: 50%; /* Initial positioning will be set by JS */
+    /* transform: translate(-50%, -50%); /* Removed for JS dragging */
     width: 300px;
-    /* Increased height to accommodate new content */
     min-height: 250px; 
     padding: 20px;
     box-sizing: border-box;
     text-align: center;
-    /* Changed cursor for dragging feedback */
-    cursor: pointer; /* Pointer for grab */
+    cursor: default; /* Changed to default */
 }
 
 /* Add specific styles for elements within the control panel */
@@ -261,7 +259,7 @@ body {
     font-size: 1.5em;
     border-bottom: 1px solid rgba(0, 255, 0, 0.3);
     padding-bottom: 5px;
-    cursor: pointer; /* Pointer for dragging on title too */
+    cursor: default; /* Changed to default */
 }
 
 #planet-control-panel p {
@@ -304,12 +302,35 @@ body {
     min-width: 80px;
     flex-direction: column; /* To stack button if needed later */
     align-items: center;
+    cursor: pointer; /* To indicate clickable slots */
+}
+
+.building-slot.occupied {
+    cursor: default;
+    background-color: rgba(0, 255, 0, 0.2);
+    border-style: solid;
 }
 
 .building-slot button {
     margin-top: 5px;
     font-size: 0.75em;
     padding: 4px 8px;
+}
+
+/* NEW: Close button for panel (X icon) */
+.close-button-x {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #0f0;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.close-button-x:hover {
+    color: #fff;
 }
 
 
