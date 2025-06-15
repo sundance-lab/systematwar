@@ -45,9 +45,9 @@ const CONFIG = {
 
     CAMERA_FOLLOW_LERP_FACTOR: 0.01, // Adjusted for overall slower movement
     CAMERA_ZOOM_LERP_FACTOR: 0.01, // Adjusted for overall slower movement
-    CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
-    CAMERA_SNAP_THRESHOLD_DISTANCE: 5, // New: Distance threshold for snapping
-    CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01, // New: Zoom difference threshold for snapping
+    CAMERA_FOLLOW_ZOOM_TARGET: 1.5, // More zoomed out when focusing
+    CAMERA_SNAP_THRESHOLD_DISTANCE: 5,
+    CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
@@ -165,12 +165,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         animateSolarSystem();
 
-        selectingStarterPlanet = true;
-        starterPlanetPanel.classList.add('active');
-        planetListPanel.classList.add('active');
+        // Randomly choose a starter planet
+        const randomIndex = Math.floor(Math.random() * currentPlanets.length);
+        chosenStarterPlanet = currentPlanets[randomIndex];
+        chosenStarterPlanet.owner = 'player';
+        chosenStarterPlanet.units = CONFIG.INITIAL_PLAYER_UNITS; // Assign initial units to this random planet
+        updatePlanetListItem(chosenStarterPlanet); // Update its appearance in the list
+
+        // Highlight the randomly chosen starter planet in the right panel
+        if (chosenStarterPlanet.listItemRef) {
+            if (camera.activeListItem) camera.activeListItem.classList.remove('active');
+            chosenStarterPlanet.listItemRef.classList.add('active');
+            camera.activeListItem = chosenStarterPlanet.listItemRef;
+        }
+
+        camera.targetPlanet = chosenStarterPlanet; // Set target to the random starter planet
+        camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET; // Zoom to target zoom
+        updatePlayerUnitDisplay(); // Update display for starter planet units
+
+        selectingStarterPlanet = false; // No selection phase
+        starterPlanetPanel.classList.remove('active'); // Hide starter prompt
+        planetListPanel.classList.add('active'); // Ensure panels are active
         playerUnitsPanel.classList.add('active');
         gameActive = true;
         console.log("Game state after Play: gameActive=", gameActive, "selectingStarterPlanet=", selectingStarterPlanet); // DEBUG
+
+        if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
+        asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
@@ -307,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let sourcePlanetWorldX, sourcePlanetWorldY;
                 if (chosenStarterPlanet.isElliptical) {
                     const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+                    const unrotatedY = chosenPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
                     sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
                     sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
                 } else {
@@ -435,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
 
-        if (e.button === 0) {
+        if (e.button === 0) { // Left mouse button
             e.preventDefault();
             let clickHandled = false;
 
@@ -470,34 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
 
-            if (selectingStarterPlanet && clickedPlanet) {
-                chosenStarterPlanet = clickedPlanet;
-                chosenStarterPlanet.owner = 'player';
-                chosenStarterPlanet.units = CONFIG.INITIAL_PLAYER_UNITS;
-                updatePlanetListItem(chosenStarterPlanet);
-
-                // Highlight the newly chosen starter planet in the list
-                if (chosenStarterPlanet.listItemRef) {
-                    if (camera.activeListItem) camera.activeListItem.classList.remove('active');
-                    chosenStarterPlanet.listItemRef.classList.add('active');
-                    camera.activeListItem = chosenStarterPlanet.listItemRef;
-                }
-
-                selectingStarterPlanet = false;
-                
-                starterPlanetPanel.classList.remove('active');
-                
-                camera.targetPlanet = chosenStarterPlanet; 
-                camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
-
-                updatePlayerUnitDisplay();
-
-                if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
-                asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
-                
-                clickHandled = true;
-
-            } else if (!selectingStarterPlanet && chosenStarterPlanet) {
+            if (selectingStarterPlanet) {
+                // This block is now handled by the play button click for random selection
+                // The actual selection logic is removed from here
+                // ... (Removed old selectingStarterPlanet logic) ...
+            } else { // After starter planet is chosen (or randomly assigned)
                 let asteroidHit = false;
                 for (let i = asteroids.length - 1; i >= 0; i--) {
                     const asteroid = asteroids[i];
@@ -517,29 +515,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                if (!asteroidHit && clickedPlanet) {
-                    // Prevent double-focusing on the same planet
-                    if (clickedPlanet === camera.targetPlanet) {
-                        clickHandled = true;
-                        return; 
-                    }
-
-                    if (camera.activeListItem) camera.activeListItem.classList.remove('active');
-                    if (clickedPlanet.listItemRef) {
-                        clickedPlanet.listItemRef.classList.add('active');
-                        camera.activeListItem = clickedPlanet.listItemRef;
-                    }
-                    camera.targetPlanet = clickedPlanet;
-                    camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
-                    clickHandled = true;
-                }
+                // If not an asteroid hit, LMB does nothing for now.
+                // Removed previous LMB planet focusing and dragging logic here.
             }
 
-            if (!clickHandled && !camera.targetPlanet) { 
-                isDragging = true;
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
-            }
+            // No action if clickHandled is false, LMB does nothing for other interactions
         }
     });
 
@@ -547,31 +527,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
 
-        if (isDragging && !camera.targetPlanet) {
-            const dx = e.clientX - lastMouseX;
-            const dy = e.clientY - lastMouseY;
+        // No dragging with LMB currently
+        // if (isDragging && !camera.targetPlanet) {
+        //     const dx = e.clientX - lastMouseX;
+        //     const dy = e.clientY - lastMouseY;
 
-            camera.x -= (dx / camera.zoom) * camera.dragSensitivity;
-            camera.y -= (dy / camera.zoom) * camera.dragSensitivity;
+        //     camera.x -= (dx / camera.zoom) * camera.dragSensitivity;
+        //     camera.y -= (dy / camera.zoom) * camera.dragSensitivity;
 
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-        }
+        //     lastMouseX = e.clientX;
+        //     lastMouseY = e.clientY;
+        // }
     });
 
     canvas.addEventListener('mouseup', (e) => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
 
-        if (e.button === 0) {
-            isDragging = false;
-        }
+        // No dragging with LMB currently
+        // if (e.button === 0) {
+        //     isDragging = false;
+        // }
     });
 
     canvas.addEventListener('mouseleave', () => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
-        isDragging = false;
+        // No dragging with LMB currently
+        // isDragging = false;
     });
 
     function initSolarSystem() {
@@ -942,6 +925,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = CONFIG.OWNER_COLORS[planet.owner];
             ctx.lineWidth = 3 / camera.zoom;
             ctx.stroke();
+
+            // Draw planet name on map
+            ctx.save();
+            ctx.translate(x, y); // Translate to planet's center
+
+            const fontSize = 12; // Base font size
+            ctx.font = `${fontSize / camera.zoom}px Arial`;
+            ctx.fillStyle = '#0f0'; // Green color for names
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const textOffset = (planet.radius + 10) / camera.zoom; // Adjust offset based on radius and zoom
+            ctx.fillText(planet.name, 0, -textOffset);
+
+            ctx.restore(); // Restore context
         });
 
         for (let i = asteroids.length - 1; i >= 0; i--) {
