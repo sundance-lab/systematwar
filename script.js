@@ -48,9 +48,9 @@ const CONFIG = {
     CAMERA_SNAP_THRESHOLD_DISTANCE: 5,
     CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01,
 
-    PLANET_PRODUCTION_INTERVAL_MS: 5000, // Renamed from PLANET_COUNTER_UPDATE_INTERVAL_MS
+    PLANET_PRODUCTION_INTERVAL_MS: 5000,
 
-    INITIAL_PLAYER_UNITS: 1000,
+    INITIAL_PLAYER_UNITS: 100, // Player starts with 100 units
     AI_PLANET_INITIAL_UNITS: 100, // All planets start with 100 units
     NEUTRAL_PLANET_INITIAL_UNITS: 100, // All planets start with 100 units
     
@@ -78,18 +78,21 @@ const CONFIG = {
     // Building Costs and Effects
     BUILDINGS: {
         Garrison: {
+            name: "Garrison",
             cost: 200,
             unitBonus: 15, // Units per interval when built
             incomeBonus: 0,
             defenseBonus: 0
         },
         MarketDistrict: {
+            name: "Market District",
             cost: 150,
             unitBonus: 0,
             incomeBonus: 5, // Income per interval when built
             defenseBonus: 0
         },
         PlanetaryDefenses: {
+            name: "Planetary Defenses",
             cost: 300,
             unitBonus: 0,
             incomeBonus: 0,
@@ -120,7 +123,7 @@ let playerIncome = 0;
 let chosenStarterPlanet = null;
 let activeFleets = [];
 let animationFrameId;
-let planetProductionInterval = null; // Renamed from planetCounterInterval
+let planetProductionInterval = null;
 let modalCallback = null;
 
 // Global variables for invasion line drawing
@@ -165,11 +168,22 @@ let controlPanelPlanetName;
 let closeControlPanelXButton; // Renamed from closeControlPanelButton
 let launchAllInvasionsButton;
 let panelUnitsDisplay;
-let panelUnitProductionRateDisplay; // NEW
-let panelIncomeRateDisplay; // NEW
+let panelUnitProductionRateDisplay;
+let panelIncomeRateDisplay;
 let panelSizeDisplay;
 let panelBuildingSlotsCount;
 let panelBuildingSlotsContainer;
+
+// NEW Building Selection Modal UI elements
+let buildingSelectionModalBackdrop;
+let buildingSelectionModal;
+let closeBuildingSelectionXButton;
+let buildingSelectionPlanetName;
+let buildingButtonsContainer;
+
+// Variables to pass context to building selection modal
+let currentBuildingSlotPlanet = null;
+let currentBuildingSlotIndex = -1;
 
 
 // --- Function Definitions (moved to top for scope) ---
@@ -242,7 +256,7 @@ function initSolarSystem() {
         const ownerType = Math.random() < 0.5 ? 'ai' : 'neutral';
         const initialUnits = ownerType === 'ai' ? CONFIG.AI_PLANET_INITIAL_UNITS : CONFIG.NEUTRAL_PLANET_INITIAL_UNITS;
 
-        currentPlanets.push({
+        const newPlanet = {
             name: shuffledPlanetNames[i % shuffledPlanetNames.length],
             radius: planetRadius,
             orbitRadius: actualOrbitRadius,
@@ -261,7 +275,13 @@ function initSolarSystem() {
             unitProductionRate: CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE,
             incomeProductionRate: CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE,
             buildings: [] // Empty array to hold building names
-        });
+        };
+
+        // Make all planets start with a Garrison
+        newPlanet.buildings.push('Garrison');
+        newPlanet.unitProductionRate += CONFIG.BUILDINGS.Garrison.unitBonus; // Apply Garrison bonus at start
+
+        currentPlanets.push(newPlanet);
 
         previousOrbitRadius = actualOrbitRadius;
     }
@@ -326,18 +346,6 @@ function updatePlanetListItem(planet) {
 }
 
 
-// Removed updatePlanetCounters as its functionality is merged into generatePlanetProduction
-// function updatePlanetCounters() {
-//     let newlyGeneratedIncome = 0;
-//     currentPlanets.forEach((planet) => {
-//         if (planet.owner === 'player') {
-//             newlyGeneratedIncome += CONFIG.INCOME_GENERATION_PER_PLAYER_PLANET;
-//         }
-//     });
-//     playerIncome += newlyGeneratedIncome;
-//     updatePlayerIncomeDisplay();
-// }
-
 function updatePlayerUnitDisplay() {
     // This function currently updates based on chosenStarterPlanet
     // To show total player units across all planets, you'd need to sum them:
@@ -358,9 +366,9 @@ function updatePlayerIncomeDisplay() {
 // Renamed from generatePlanetUnits and updated to handle income and units production
 function generatePlanetProduction() {
     currentPlanets.forEach(planet => {
-        // Apply building effects to production rates
-        let currentUnitProduction = planet.unitProductionRate;
-        let currentIncomeProduction = planet.incomeProductionRate;
+        // Calculate current production rates including buildings
+        let currentUnitProduction = CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE;
+        let currentIncomeProduction = CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE;
 
         planet.buildings.forEach(buildingName => {
             if (buildingName === 'Garrison') {
@@ -490,7 +498,6 @@ function animateSolarSystem() {
         let targetPos = getPlanetCurrentWorldCoordinates(camera.targetPlanet);
         camera.x = targetPos.x;
         camera.y = targetPos.y;
-        // camera.zoom = camera.targetZoom; // Keep this if manual zoom is desired while focusing
     }
 
     ctx.scale(camera.zoom, camera.zoom);
@@ -730,7 +737,7 @@ function showModal(message, type, callback = null) {
         modalInputArea.style.display = 'flex';
         modalConfirm.style.display = 'none';
         modalInputConfirm.style.display = 'block';
-        modalInput.value = '';
+        modalInput.value = ''; // Clear previous input
         modalInput.focus();
     } else {
         modalInputArea.style.display = 'none';
@@ -750,6 +757,75 @@ function hideModal() {
     gameModal.classList.remove('active');
     gameActive = true; // Resume game after modal closes
 }
+
+// NEW: Function to show the building selection modal
+function showBuildingSelectionModal(planet, slotIndex) {
+    buildingSelectionPlanetName.textContent = `Build on ${planet.name} (Slot ${slotIndex + 1})`;
+    buildingButtonsContainer.innerHTML = ''; // Clear previous buttons
+
+    for (const buildingType in CONFIG.BUILDINGS) {
+        if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
+            const buildingData = CONFIG.BUILDINGS[buildingType];
+            const button = document.createElement('button');
+            button.textContent = `${buildingData.name} (${buildingData.cost} income)`;
+            button.dataset.buildingType = buildingType; // Store type in data attribute
+
+            button.addEventListener('click', () => {
+                executeBuildingConstruction(buildingType, planet, slotIndex);
+                hideBuildingSelectionModal(); // Hide modal after selection
+            });
+            buildingButtonsContainer.appendChild(button);
+        }
+    }
+
+    // Set current context for selection
+    currentBuildingSlotPlanet = planet;
+    currentBuildingSlotIndex = slotIndex;
+
+    buildingSelectionModalBackdrop.classList.add('active');
+    buildingSelectionModal.classList.add('active');
+    // NOTE: gameActive is NOT set to false here so map movement is allowed.
+    // However, if gameActive is false due to gameModal, this won't change it.
+}
+
+// NEW: Function to hide the building selection modal
+function hideBuildingSelectionModal() {
+    buildingSelectionModalBackdrop.classList.remove('active');
+    buildingSelectionModal.classList.remove('active');
+    currentBuildingSlotPlanet = null;
+    currentBuildingSlotIndex = -1;
+    // Map movement is already active if gameModal is not up
+}
+
+
+// NEW: Function to execute building construction after selection
+function executeBuildingConstruction(buildingType, planet, slotIndex) {
+    const buildingData = CONFIG.BUILDINGS[buildingType];
+    const cost = buildingData.cost;
+
+    if (playerIncome >= cost) {
+        playerIncome -= cost;
+        planet.buildings[slotIndex] = buildingType; // Store building name
+
+        // Apply immediate bonuses
+        if (buildingData.unitBonus) {
+            planet.unitProductionRate += buildingData.unitBonus;
+        }
+        if (buildingData.incomeBonus) {
+            planet.incomeProductionRate += buildingData.incomeBonus;
+        }
+        // Defense bonus is applied in resolveCombat, no direct planet property change here
+
+        updatePlayerIncomeDisplay(); // Update global income display
+        showModal(`${buildingData.name} built on ${planet.name}!`, 'alert');
+        showPlanetControlPanel(planet); // Re-render panel to show new building and updated stats
+    } else {
+        showModal("Not enough income to build that!", 'alert');
+        // Re-render panel to show original state, as construction failed
+        showPlanetControlPanel(planet); 
+    }
+}
+
 
 // Functions for planet control panel
 function showPlanetControlPanel(planet) {
@@ -795,33 +871,7 @@ function showPlanetControlPanel(planet) {
             // Allow building selection only if player owns the planet
             if (planet.owner === 'player') {
                 slotDiv.addEventListener('click', () => {
-                    // Prompt user to choose building type
-                    showModal(`Build on ${planet.name} (Slot ${i + 1})?\n\nType "garrison" (${CONFIG.BUILDINGS.Garrison.cost} income), "market" (${CONFIG.BUILDINGS.MarketDistrict.cost} income), or "defenses" (${CONFIG.BUILDINGS.PlanetaryDefenses.cost} income):`, 'prompt', (buildingTypeInput) => {
-                        const buildingType = buildingTypeInput.toLowerCase();
-                        let buildingData = CONFIG.BUILDINGS[buildingType.charAt(0).toUpperCase() + buildingType.slice(1)]; // Capitalize first letter
-
-                        if (!buildingData) {
-                            showModal("Invalid building type. Please choose 'garrison', 'market', or 'defenses'.", 'alert');
-                            return;
-                        }
-
-                        if (playerIncome >= buildingData.cost) {
-                            playerIncome -= buildingData.cost;
-                            planet.buildings[i] = buildingType.charAt(0).toUpperCase() + buildingType.slice(1); // Store building name (capitalized)
-
-                            // Apply immediate bonuses
-                            if (buildingData.unitBonus) planet.unitProductionRate += buildingData.unitBonus;
-                            if (buildingData.incomeBonus) planet.incomeProductionRate += buildingData.incomeBonus;
-                            // Defense bonus is applied in resolveCombat, no direct planet property change here
-
-                            updatePlayerIncomeDisplay(); // Update global income display
-                            showModal(`${buildingData.name || buildingType} built on ${planet.name}!`, 'alert');
-                            showPlanetControlPanel(planet); // Re-render panel to show new building and updated stats
-                        } else {
-                            showModal("Not enough income to build that!", 'alert');
-                            showPlanetControlPanel(planet); // Re-render panel to show original state
-                        }
-                    });
+                    showBuildingSelectionModal(planet, i); // Open building selection modal
                 });
             } else {
                 // If not player owned, make it unclickable or show a message
@@ -832,12 +882,12 @@ function showPlanetControlPanel(planet) {
     }
 
     planetControlPanel.classList.add('active');
-    gameActive = false; // Pause game while panel is open
+    // Removed gameActive = false here so map movement is allowed
 }
 
 function hidePlanetControlPanel() {
     planetControlPanel.classList.remove('active');
-    gameActive = true; // Resume game
+    // Removed gameActive = true here as map movement is not blocked by panel
 }
 
 
@@ -870,11 +920,18 @@ document.addEventListener('DOMContentLoaded', () => {
     launchAllInvasionsButton = document.getElementById('launch-all-invasions');
     // Assignments for panel content
     panelUnitsDisplay = document.getElementById('panel-units');
-    panelUnitProductionRateDisplay = document.getElementById('panel-unit-production-rate'); // NEW
-    panelIncomeRateDisplay = document.getElementById('panel-income-rate'); // NEW
+    panelUnitProductionRateDisplay = document.getElementById('panel-unit-production-rate');
+    panelIncomeRateDisplay = document.getElementById('panel-income-rate');
     panelSizeDisplay = document.getElementById('panel-size');
     panelBuildingSlotsCount = document.getElementById('panel-building-slots-count');
     panelBuildingSlotsContainer = document.getElementById('panel-building-slots');
+
+    // NEW Building Selection Modal UI element assignments
+    buildingSelectionModalBackdrop = document.getElementById('building-selection-modal-backdrop');
+    buildingSelectionModal = document.getElementById('building-selection-modal');
+    closeBuildingSelectionXButton = document.getElementById('close-building-selection-x');
+    buildingSelectionPlanetName = document.getElementById('building-selection-planet-name');
+    buildingButtonsContainer = document.getElementById('building-buttons-container');
 
 
     // Event listeners for modal buttons
@@ -887,10 +944,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     modalInputConfirm.addEventListener('click', () => {
-        const value = modalInput.value; // Get raw value for building type input
-        // If the callback is expecting a number (e.g., invasion units), parse it
-        // Otherwise, pass the string directly for building type selection
-        const parsedValue = parseInt(value);
+        const value = modalInput.value; // Get raw value for building type input or units
+        const parsedValue = parseInt(value); // Try parsing as number
         hideModal();
         if (modalCallback) {
             // Check if input is a number (e.g., units for invasion) or string (e.g., building type)
@@ -903,9 +958,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Event listener for the new planet control panel 'X' button
+    // Event listener for the planet control panel 'X' button
     closeControlPanelXButton.addEventListener('click', () => {
         hidePlanetControlPanel();
+    });
+
+    // NEW: Event listener for the building selection modal 'X' button
+    closeBuildingSelectionXButton.addEventListener('click', () => {
+        hideBuildingSelectionModal();
     });
 
     // Event listener for the Launch All Invasions button
@@ -943,7 +1003,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event listeners for panel dragging
     planetControlPanel.addEventListener('mousedown', (e) => {
-        if (e.button === 0) { // Left mouse button
+        // Ensure click is on the panel itself, not a child button or input
+        if (e.button === 0 && e.target === planetControlPanel || e.target.tagName === 'H2') { // Left mouse button
             isDraggingPanel = true;
             // Calculate offset from mouse to panel's top-left corner
             dragPanelOffsetX = e.clientX - planetControlPanel.getBoundingClientRect().left;
@@ -1047,8 +1108,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Left-click (LMB) for invasion initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
-        // Condition for blocking interaction when modal or control panel is active
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // Condition for blocking interaction when game is paused or gameModal is active
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) {
+            // If dragging panel, allow that specific interaction
+            if (e.target === planetControlPanel || e.target.tagName === 'H2') {
+                return;
+            }
+            // Block all other canvas interaction if game is paused by gameModal
+            return;
+        }
+
+        // Only process click on canvas if it's the canvas itself, not a UI element over it
+        if (e.target !== canvas) {
+            return;
+        }
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -1156,8 +1230,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Right-click (RMB) for planet control panel
     canvas.addEventListener('contextmenu', (e) => {
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         e.preventDefault(); // Prevent default right-click context menu
+
+        // Only process click on canvas if it's the canvas itself, not a UI element over it
+        if (e.target !== canvas) {
+            return;
+        }
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
@@ -1179,7 +1259,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
         currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
@@ -1208,7 +1289,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         isDraggingPanel = false; // Reset panel dragging
         planetControlPanel.style.cursor = 'default'; // Changed to default
@@ -1216,7 +1298,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         isDraggingPanel = false; // Reset panel dragging
         planetControlPanel.style.cursor = 'default'; // Changed to default
@@ -1232,7 +1315,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Re-enabled zoom for 'wheel' event by removing blocking conditions
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+        // NOTE: planetControlPanel.classList.contains('active') is intentionally removed to allow map movement
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
 
         e.preventDefault();
 
