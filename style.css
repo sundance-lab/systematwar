@@ -87,7 +87,7 @@ body {
     right: 20px;
     left: auto;
     width: 180px;
-    height: 300px;
+    height: 500px; /* Increased height */
     overflow-y: auto;
     padding: 10px;
     box-sizing: border-box;
@@ -140,14 +140,14 @@ body {
     right: auto;
     bottom: auto;
     transform: none;
-    padding: 12px 18px; /* Slightly increased padding */
-    font-size: 1.5em; /* Slightly increased font size */
+    padding: 15px 20px; /* Slightly increased padding */
+    font-size: 1.6em; /* Increased font size */
     min-width: 120px;
     text-align: left;
 }
 
 #player-units-panel #player-unit-count,
-#player-units-panel #player-income-count { /* Updated for income */
+#player-units-panel #player-income-count {
     font-weight: bold;
     color: #00ff00;
     text-shadow: 0 0 3px #0f0; /* Slightly reduced text shadow intensity */
