@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.05,
-    CAMERA_ZOOM_LERP_FACTOR: 0.05,
+    CAMERA_FOLLOW_LERP_FACTOR: 0.02, // Adjusted for smoother movement
+    CAMERA_ZOOM_LERP_FACTOR: 0.02, // Adjusted for smoother zoom
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -80,7 +80,7 @@ const CONFIG = {
     COMBAT_ATTACKER_BONUS_PERCENT: 0.1,
     MIN_UNITS_FOR_AI_PLANET: 50,
 
-    ENERGY_GENERATION_PER_PLAYER_PLANET: 1, // New: Energy generated per player-owned planet per interval
+    ENERGY_GENERATION_PER_PLAYER_PLANET: 1,
 };
 
 
@@ -91,14 +91,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('solar-system-canvas');
     const ctx = canvas.getContext('2d');
     const starterPlanetPanel = document.getElementById('starter-planet-panel');
-    const planetChosenPanel = document.getElementById('planet-chosen-panel');
-    const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
-    const confirmPlanetButton = document.getElementById('confirm-planet-button');
+    // Removed: const planetChosenPanel = document.getElementById('planet-chosen-panel');
+    // Removed: const chosenPlanetNameDisplay = document.getElementById('chosen-planet-name');
+    // Removed: const confirmPlanetButton = document.getElementById('confirm-planet-button');
     const planetListPanel = document.getElementById('planet-list-panel');
     const planetList = document.getElementById('planet-list');
     const playerUnitsPanel = document.getElementById('player-units-panel');
     const playerUnitCountDisplay = document.getElementById('player-unit-count');
-    const playerEnergyCountDisplay = document.getElementById('player-energy-count'); // New: Energy display element
+    const playerEnergyCountDisplay = document.getElementById('player-energy-count');
 
     const gameModalBackdrop = document.getElementById('game-modal-backdrop');
     const gameModal = document.getElementById('game-modal');
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameActive = false;
 
     let playerUnits = 0;
-    let playerEnergy = 0; // New: Player's global energy counter
+    let playerEnergy = 0;
     let asteroids = [];
     let chosenStarterPlanet = null;
     let activeFleets = [];
@@ -157,12 +157,12 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
         playerUnits = CONFIG.INITIAL_PLAYER_UNITS;
-        playerEnergy = 0; // Reset energy
+        playerEnergy = 0;
         asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
         updatePlayerUnitDisplay();
-        updatePlayerEnergyDisplay(); // Update new energy display
+        updatePlayerEnergyDisplay();
 
         populatePlanetList();
 
@@ -176,29 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Game state after Play: gameActive=", gameActive, "selectingStarterPlanet=", selectingStarterPlanet); // DEBUG
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
-        // planetCounterInterval will now be used for energy generation
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
 
         if (planetUnitGenerationInterval) clearInterval(planetUnitGenerationInterval);
         planetUnitGenerationInterval = setInterval(generatePlanetUnits, CONFIG.PLANET_UNIT_GENERATION_INTERVAL_MS);
     });
 
-    confirmPlanetButton.addEventListener('click', () => {
-        console.log("Confirm Planet button clicked."); // DEBUG
-        planetChosenPanel.classList.remove('active');
-        selectingStarterPlanet = false; // Important: Set this to false here
-        console.log("Game state after Confirm: selectingStarterPlanet=", selectingStarterPlanet); // DEBUG
-        
-        chosenStarterPlanet.owner = 'player';
-        chosenStarterPlanet.units = CONFIG.STARTER_PLANET_INITIAL_UNITS;
-        updatePlanetListItem(chosenStarterPlanet);
-
-        camera.targetPlanet = chosenStarterPlanet; 
-        camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
-
-        if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
-        asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
-    });
+    // Removed: confirmPlanetButton.addEventListener block as it's no longer needed
 
     modalConfirm.addEventListener('click', () => {
         console.log("Modal OK clicked."); // DEBUG
@@ -248,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle right-click (contextmenu) for invasion
     canvas.addEventListener('contextmenu', (e) => {
         console.log("CONTEXTMENU EVENT FIRED!"); // DEBUG
-        console.log("gameActive:", gameActive, "gameModalBackdrop active:", gameModalBacklog.classList.contains('active')); // DEBUG
+        console.log("gameActive:", gameActive, "gameModalBackdrop active:", gameModalBackdrop.classList.contains('active')); // DEBUG
         console.log("chosenStarterPlanet:", chosenStarterPlanet ? chosenStarterPlanet.name : "null", "selectingStarterPlanet:", selectingStarterPlanet); // DEBUG
 
         if (!gameActive) return;
@@ -289,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 Math.pow(worldX - planetWorldX, 2) +
                 Math.pow(worldY - planetWorldY, 2)
             );
-            // console.log(`  - Checking ${planet.name}: world (${planetWorldX.toFixed(2)},${planetWorldY.toFixed(2)}), radius ${planet.radius}, dist ${distance.toFixed(2)}`); // VERBOSE DEBUG LOG
+
             if (distance < planet.radius) {
                 targetPlanet = planet;
                 console.log(`CONTEXTMENU: Hit planet: ${planet.name}`); // DEBUG
@@ -345,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
         } else {
-            // Removed previous else block content - now right-clicking empty space does nothing
+            // Right-clicking empty space now does nothing
         }
     });
 
@@ -488,18 +472,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (selectingStarterPlanet && clickedPlanet) {
                 chosenStarterPlanet = clickedPlanet;
-                starterPlanetPanel.classList.remove('active');
-                chosenPlanetNameDisplay.textContent = `You chose ${clickedPlanet.name}!`;
-                planetChosenPanel.classList.add('active');
-                clickHandled = true;
+                chosenStarterPlanet.owner = 'player'; // Set owner immediately
+                chosenStarterPlanet.units = CONFIG.STARTER_PLANET_INITIAL_UNITS; // Set initial units
+                updatePlanetListItem(chosenStarterPlanet); // Update list entry
 
-                if (clickedPlanet.listItemRef) {
-                    if (camera.activeListItem) camera.activeListItem.classList.remove('active');
-                    clickedPlanet.listItemRef.classList.add('active');
-                    camera.activeListItem = clickedPlanet.listItemRef;
-                }
-                camera.targetPlanet = clickedPlanet;
+                selectingStarterPlanet = false; // Immediately exit selection phase
+                
+                starterPlanetPanel.classList.remove('active'); // Hide starter prompt panel
+                // The planetListPanel and playerUnitsPanel remain active
+                
+                camera.targetPlanet = chosenStarterPlanet; 
                 camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
+
+                // Start asteroid spawning immediately after selection
+                if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
+                asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
+                
+                clickHandled = true;
 
             } else if (!selectingStarterPlanet && chosenStarterPlanet) {
                 let asteroidHit = false;
@@ -601,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
             
-            // New: Ensure planet's closest edge is outside the sun's edge + clearance
+            // Ensure planet's closest edge is outside the sun's edge + clearance
             const minOrbitFromStarEdge = currentStarRadius + planetRadius + minPlanetClearance;
 
 
@@ -654,7 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 semiMinorAxis: semiMinorAxis,
                 eccentricity: eccentricity,
                 rotationAngle: rotationAngle,
-                // timeSurvived: 0, // Removed: Individual planet survival time is no longer displayed
                 listItemRef: null,
                 owner: ownerType,
                 units: initialUnits
@@ -676,16 +664,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ownerIndicator.classList.add('owner-indicator');
             ownerIndicator.classList.add(`owner-${planet.owner}`);
 
-            // Removed: planet number span for individual planet time survived
-            // const planetNumberSpan = document.createElement('span');
-            // planetNumberSpan.classList.add('planet-number');
-            // planetNumberSpan.textContent = `0 `;
-
             const planetNameText = document.createTextNode(`P${index + 1}: ${planet.name} (${planet.units})`);
 
             listItem.appendChild(ownerIndicator);
-            // Removed: appending planet number span
-            // listItem.appendChild(planetNumberSpan);
             listItem.appendChild(planetNameText);
             listItem.dataset.planetIndex = index;
 
@@ -715,12 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const currentTextParts = planetNameTextNode.textContent.split('(');
             planetNameTextNode.textContent = currentTextParts[0].trim() + ` (${planet.units})`;
-
-            // Removed: individual planet counter update
-            // const counterSpan = planet.listItemRef.querySelector('.planet-number');
-            // if (counterSpan) {
-            //     counterSpan.textContent = `${planet.timeSurvived} `;
-            // }
         }
     }
 
@@ -728,22 +703,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePlanetCounters() {
         let newlyGeneratedEnergy = 0;
         currentPlanets.forEach((planet) => {
-            // Individual planet survival time removed from here
-            // planet.timeSurvived++;
-
             if (planet.owner === 'player') {
                 newlyGeneratedEnergy += CONFIG.ENERGY_GENERATION_PER_PLAYER_PLANET;
             }
         });
-        playerEnergy += newlyGeneratedEnergy; // Add to total player energy
-        updatePlayerEnergyDisplay(); // Update display
+        playerEnergy += newlyGeneratedEnergy;
+        updatePlayerEnergyDisplay();
     }
 
     function updatePlayerUnitDisplay() {
         playerUnitCountDisplay.textContent = playerUnits;
     }
 
-    // New: Function to update player energy display
     function updatePlayerEnergyDisplay() {
         playerEnergyCountDisplay.textContent = playerEnergy;
     }
@@ -773,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const angleToPlanet = Math.atan2(planetCurrentY - spawnY, planetCurrentX - spawnX);
         const velocityX = Math.cos(angleToPlanet) * asteroidSpeed;
-        const velocityY = Math.sin(angleToPlanet) * asteroidSpeed;
+        const velocityY = Math.sin(angleToPlanet) * asteroidToPlanetSpeed;
 
         asteroids.push({
             x: spawnX,
@@ -821,6 +792,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             asteroid.x += asteroid.velocityX;
             asteroid.y += asteroid.velocityY;
+
+            const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
+            const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
+
+            if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
+                asteroids.splice(i, 1);
+                continue;
+            }
         }
 
         // 3. Update active invasion fleets
@@ -951,19 +930,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             asteroid.x += asteroid.velocityX;
             asteroid.y += asteroid.velocityY;
-
-            const distFromCameraCenter = Math.sqrt(Math.pow(asteroid.x - camera.x, 2) + Math.pow(asteroid.y - camera.y, 2));
-            const screenRadiusWorldUnits = (Math.min(canvas.width, canvas.height) / 2) / camera.zoom;
-
-            if (distFromCameraCenter > screenRadiusWorldUnits + CONFIG.ASTEROID_OFFSCREEN_THRESHOLD) {
-                asteroids.splice(i, 1);
-                continue;
-            }
-
-            ctx.beginPath();
-            ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
-            ctx.fillStyle = asteroid.color;
-            ctx.fill();
         }
 
         activeFleets.forEach(fleet => {
