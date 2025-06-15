@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let sourcePlanetWorldX, sourcePlanetWorldY;
                 if (chosenStarterPlanet.isElliptical) {
                     const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-                    const unrotatedY = chosenPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
+                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
                     sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
                     sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
                 } else {
@@ -385,9 +385,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (winner === 'attacker') {
             resultMessage = `Invasion successful! Your ${attackerUnits} units defeated ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
-            resultMessage += `\n${remainingAttackerUnits} units remain and claim the planet for you.`; // Updated message: units remain
+            resultMessage += `\n${remainingAttackerUnits} units remain and claim the planet for you.`;
             targetPlanet.owner = 'player';
-            targetPlanet.units = remainingAttackerUnits; // Attacker's remaining units now garrison the planet
+            targetPlanet.units = remainingAttackerUnits;
             updatePlanetListItem(targetPlanet);
         } else {
             resultMessage = `Invasion failed! Your ${attackerUnits} units were defeated by ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
@@ -678,11 +678,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (camera.activeListItem) {
                     camera.activeListItem.classList.remove('active');
                 }
-                listItem.classList.add('active');
-                camera.activeListItem = listItem;
-
-                camera.targetPlanet = planet;
-                camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
+                // Check if the clicked planet is already the target planet
+                if (planet === camera.targetPlanet) {
+                    camera.targetPlanet = null; // Unfocus
+                    camera.targetZoom = CONFIG.CAMERA_INITIAL_ZOOM; // Revert to initial zoom
+                    camera.activeListItem = null; // Clear active list item
+                } else {
+                    listItem.classList.add('active');
+                    camera.activeListItem = listItem;
+                    camera.targetPlanet = planet; // Focus on the clicked planet
+                    camera.targetZoom = CONFIG.CAMERA_FOLLOW_ZOOM_TARGET;
+                }
             });
             planetList.appendChild(listItem);
         });
