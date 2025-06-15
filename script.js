@@ -870,6 +870,11 @@ function showPlanetControlPanel(planet) {
         panelBuildingSlotsContainer.appendChild(slotDiv);
     }
 
+    // NEW: Set initial position to center of the screen
+    planetControlPanel.style.left = '50%';
+    planetControlPanel.style.top = '50%';
+    planetControlPanel.style.transform = 'translate(-50%, -50%)'; // Center it properly
+
     planetControlPanel.classList.add('active');
     hideBuildingOptionsSubpanel(); 
 }
