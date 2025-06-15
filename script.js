@@ -103,13 +103,17 @@ let planetCounterInterval = null;
 let planetUnitGenerationInterval = null;
 let modalCallback = null;
 
-// NEW Global variables for invasion line drawing
+// Global variables for invasion line drawing
 let selectedSourcePlanet = null;
-let isDrawingInvasionLine = false;
+let isDrawingInvasionLine = false; // True if line follows cursor
 let currentMouseWorldX, currentMouseWorldY; // To store cursor position in world coords
 
 // NEW Global variable for pending invasions
-let pendingInvasions = [];
+let pendingInvasions = []; // Stores {source: planet, target: planet, units: number}
+
+// NEW Global variable for line attached to target when modal is open
+let tempFixedInvasionLine = null; // Stores {source: planet, target: planet} when modal is active for an invasion
+
 
 // UI element references (declared globally, assigned in DOMContentLoaded)
 let titleScreen;
@@ -264,19 +268,10 @@ function populatePlanetList() {
                 camera.targetPlanet = planet; // Focus on the clicked planet
                 camera.targetZoom = camera.zoom; // Keep current zoom
 
-                // FIX: Immediately center camera on the newly targeted planet
-                let targetX, targetY;
-                if (planet.isElliptical) {
-                    const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-                    const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-                    targetX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-                    targetY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-                } else {
-                    targetX = Math.cos(planet.angle) * planet.orbitRadius;
-                    targetY = Math.sin(planet.angle) * planet.orbitRadius;
-                }
-                camera.x = targetX;
-                camera.y = targetY;
+                // Immediately center camera on the newly targeted planet
+                let targetPos = getPlanetCurrentWorldCoordinates(planet);
+                camera.x = targetPos.x;
+                camera.y = targetPos.y;
             }
         });
         planetList.appendChild(listItem);
@@ -358,15 +353,9 @@ function getPlanetAtCoordinates(worldX, worldY) {
     for (let i = 0; i < currentPlanets.length; i++) {
         const planet = currentPlanets[i];
         let planetWorldX, planetWorldY;
-        if (planet.isElliptical) {
-            const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-            const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-            planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-            planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-        } else {
-            planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
-            planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
-        }
+        let planetPos = getPlanetCurrentWorldCoordinates(planet);
+        planetWorldX = planetPos.x;
+        planetWorldY = planetPos.y;
 
         const distance = Math.sqrt(
             Math.pow(worldX - planetWorldX, 2) +
@@ -378,6 +367,24 @@ function getPlanetAtCoordinates(worldX, worldY) {
         }
     }
     return null;
+}
+
+// NEW Helper function to get a planet's current world coordinates
+function getPlanetCurrentWorldCoordinates(planet) {
+    let x, y;
+    const systemCenterX = 0; // Assume star is at (0,0) world coords
+    const systemCenterY = 0;
+
+    if (planet.isElliptical) {
+        const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
+        const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
+        x = systemCenterX + unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+        y = systemCenterY + unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+    } else {
+        x = systemCenterX + Math.cos(planet.angle) * planet.orbitRadius;
+        y = systemCenterY + Math.sin(planet.angle) * planet.orbitRadius;
+    }
+    return { x, y };
 }
 
 function animateSolarSystem() {
@@ -394,24 +401,13 @@ function animateSolarSystem() {
         fleet.progress = Math.min(timeElapsed / fleet.travelDuration, 1);
 
         let sourceX, sourceY, targetX, targetY;
-        if (fleet.source.isElliptical) {
-            const unrotatedX = fleet.source.semiMajorAxis * Math.cos(fleet.source.angle);
-            const unrotatedY = fleet.source.semiMinorAxis * Math.sin(fleet.source.angle);
-            sourceX = unrotatedX * Math.cos(fleet.source.rotationAngle) - unrotatedY * Math.sin(fleet.source.rotationAngle);
-            sourceY = unrotatedX * Math.sin(fleet.source.rotationAngle) + unrotatedY * Math.cos(fleet.source.rotationAngle);
-        } else {
-            sourceX = Math.cos(fleet.source.angle) * fleet.source.orbitRadius;
-            sourceY = Math.sin(fleet.source.angle) * fleet.source.orbitRadius;
-        }
-        if (fleet.target.isElliptical) {
-            const unrotatedX = fleet.target.semiMajorAxis * Math.cos(fleet.target.angle);
-            const unrotatedY = fleet.target.semiMinorAxis * Math.sin(fleet.target.angle);
-            targetX = unrotatedX * Math.cos(fleet.target.rotationAngle) - unrotatedY * Math.sin(fleet.target.rotationAngle);
-            targetY = unrotatedX * Math.sin(fleet.target.rotationAngle) + unrotatedY * Math.cos(fleet.target.rotationAngle);
-        } else {
-            targetX = Math.cos(fleet.target.angle) * fleet.target.orbitRadius;
-            targetY = Math.sin(fleet.target.angle) * fleet.target.orbitRadius;
-        }
+        let sourcePos = getPlanetCurrentWorldCoordinates(fleet.source);
+        sourceX = sourcePos.x;
+        sourceY = sourcePos.y;
+
+        let targetPos = getPlanetCurrentWorldCoordinates(fleet.target);
+        targetX = targetPos.x;
+        targetY = targetPos.y;
 
         fleet.currentX = sourceX + (targetX - sourceX) * fleet.progress;
         fleet.currentY = sourceY + (targetY - sourceY) * fleet.progress;
@@ -431,15 +427,9 @@ function animateSolarSystem() {
 
     if (camera.targetPlanet) {
         let targetX, targetY;
-        if (camera.targetPlanet.isElliptical) {
-            const unrotatedX = camera.targetPlanet.semiMajorAxis * Math.cos(camera.targetPlanet.angle);
-            const unrotatedY = camera.targetPlanet.semiMinorAxis * Math.sin(camera.targetPlanet.angle);
-            targetX = unrotatedX * Math.cos(camera.targetPlanet.rotationAngle) - unrotatedY * Math.sin(camera.targetPlanet.rotationAngle);
-            targetY = unrotatedX * Math.sin(camera.targetPlanet.rotationAngle) + unrotatedY * Math.cos(camera.targetPlanet.rotationAngle);
-        } else {
-            targetX = Math.cos(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
-            targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
-        }
+        let targetPos = getPlanetCurrentWorldCoordinates(camera.targetPlanet);
+        targetX = targetPos.x;
+        targetY = targetPos.y;
 
         // Calculate current distance for snapping
         const currentDistance = Math.sqrt(
@@ -495,17 +485,9 @@ function animateSolarSystem() {
         ctx.stroke();
 
         let x, y;
-        if (planet.isElliptical) {
-            const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-            const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-
-            x = systemCenterX + unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-            y = systemCenterY + unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-
-        } else {
-            x = systemCenterX + Math.cos(planet.angle) * planet.orbitRadius;
-            y = systemCenterY + Math.sin(planet.angle) * planet.orbitRadius;
-        }
+        let planetPos = getPlanetCurrentWorldCoordinates(planet);
+        x = planetPos.x;
+        y = planetPos.y;
 
         ctx.beginPath();
         ctx.arc(x, y, planet.radius, 0, Math.PI * 2);
@@ -536,39 +518,38 @@ function animateSolarSystem() {
     });
 
     // Draw the temporary invasion line (following cursor)
-    if (isDrawingInvasionLine && selectedSourcePlanet) {
-        ctx.beginPath();
-        let sourcePlanetWorldX, sourcePlanetWorldY;
-        if (selectedSourcePlanet.isElliptical) {
-            const unrotatedX = selectedSourcePlanet.semiMajorAxis * Math.cos(selectedSourcePlanet.angle);
-            const unrotatedY = selectedSourcePlanet.semiMinorAxis * Math.sin(selectedSourcePlanet.angle);
-            sourcePlanetWorldX = unrotatedX * Math.cos(selectedSourcePlanet.rotationAngle) - unrotatedY * Math.sin(selectedSourcePlanet.rotationAngle);
-            sourcePlanetWorldY = unrotatedX * Math.sin(selectedSourcePlanet.rotationAngle) + unrotatedY * Math.cos(selectedSourcePlanet.rotationAngle);
-        } else {
-            sourcePlanetWorldX = Math.cos(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
-            sourcePlanetWorldY = Math.sin(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
-        }
+    if (selectedSourcePlanet && isDrawingInvasionLine) {
+        let sourcePos = getPlanetCurrentWorldCoordinates(selectedSourcePlanet);
+        let sourcePlanetWorldX = sourcePos.x;
+        let sourcePlanetWorldY = sourcePos.y;
 
-        ctx.moveTo(sourcePlanetWorldX, sourcePlanetWorldY);
-        ctx.lineTo(currentMouseWorldX, currentMouseWorldY);
+        const angleToMouse = Math.atan2(currentMouseWorldY - sourcePlanetWorldY, currentMouseWorldX - sourcePlanetWorldX);
+        const lineStartX = sourcePlanetWorldX + Math.cos(angleToMouse) * selectedSourcePlanet.radius;
+        const lineStartY = sourcePlanetWorldY + Math.sin(angleToMouse) * selectedSourcePlanet.radius;
+        const lineEndX = currentMouseWorldX;
+        const lineEndY = currentMouseWorldY;
+
+
+        ctx.beginPath();
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.lineTo(lineEndX, lineEndY);
         ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)'; // Brighter, semi-transparent cyan
-        ctx.lineWidth = 0.5 / camera.zoom; // Skinny
+        ctx.lineWidth = 1 / camera.zoom; // Skinny
         ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]); // Dotted line
         ctx.stroke();
         ctx.setLineDash([]); // Reset line dash
 
         // Draw an arrowhead (simple triangle) - only if mouse is far enough from source planet
-        const distance = Math.sqrt(Math.pow(currentMouseWorldX - sourcePlanetWorldX, 2) + Math.pow(currentMouseWorldY - sourcePlanetWorldY, 2));
+        const distance = Math.sqrt(Math.pow(currentMouseWorldX - lineStartX, 2) + Math.pow(currentMouseWorldY - lineStartY, 2));
         const minArrowDrawDistance = 20 / camera.zoom; // Minimum distance to draw the arrowhead
 
         if (distance > minArrowDrawDistance) {
-            const angle = Math.atan2(currentMouseWorldY - sourcePlanetWorldY, currentMouseWorldX - sourcePlanetWorldX);
             const arrowLength = 10 / camera.zoom; // Less thick
             const arrowWidth = 5 / camera.zoom; // Less thick
 
             ctx.save();
-            ctx.translate(currentMouseWorldX, currentMouseWorldY);
-            ctx.rotate(angle);
+            ctx.translate(lineEndX, lineEndY);
+            ctx.rotate(angleToMouse);
             ctx.beginPath();
             ctx.moveTo(-arrowLength, arrowWidth / 2);
             ctx.lineTo(0, 0);
@@ -579,36 +560,97 @@ function animateSolarSystem() {
         }
     }
 
-    // NEW: Draw pending invasion lines (staged invasions)
-    pendingInvasions.forEach(pending => {
-        ctx.beginPath();
-        let sourceX, sourceY, targetX, targetY;
-        if (pending.source.isElliptical) {
-            const unrotatedX = pending.source.semiMajorAxis * Math.cos(pending.source.angle);
-            const unrotatedY = pending.source.semiMinorAxis * Math.sin(pending.source.angle);
-            sourceX = unrotatedX * Math.cos(pending.source.rotationAngle) - unrotatedY * Math.sin(pending.source.rotationAngle);
-            sourceY = unrotatedX * Math.sin(pending.source.rotationAngle) + unrotatedY * Math.cos(pending.source.rotationAngle);
-        } else {
-            sourceX = Math.cos(pending.source.angle) * pending.source.orbitRadius;
-            sourceY = Math.sin(pending.source.angle) * pending.source.orbitRadius;
-        }
-        if (pending.target.isElliptical) {
-            const unrotatedX = pending.target.semiMajorAxis * Math.cos(pending.target.angle);
-            const unrotatedY = pending.target.semiMinorAxis * Math.sin(pending.target.angle);
-            targetX = unrotatedX * Math.cos(pending.target.rotationAngle) - unrotatedY * Math.sin(pending.target.rotationAngle);
-            targetY = unrotatedX * Math.sin(pending.target.rotationAngle) + unrotatedY * Math.cos(pending.target.rotationAngle);
-        } else {
-            targetX = Math.cos(pending.target.angle) * pending.target.orbitRadius;
-            targetY = Math.sin(pending.target.angle) * pending.target.orbitRadius;
-        }
+    // NEW: Draw temporary fixed line when modal is open
+    if (tempFixedInvasionLine) {
+        let sourcePos = getPlanetCurrentWorldCoordinates(tempFixedInvasionLine.source);
+        let targetPos = getPlanetCurrentWorldCoordinates(tempFixedInvasionLine.target);
 
-        ctx.moveTo(sourceX, sourceY);
-        ctx.lineTo(targetX, targetY);
+        let sourcePlanetWorldX = sourcePos.x;
+        let sourcePlanetWorldY = sourcePos.y;
+        let targetPlanetWorldX = targetPos.x;
+        let targetPlanetWorldY = targetPos.y;
+
+        const angleFromSourceToTarget = Math.atan2(targetPlanetWorldY - sourcePlanetWorldY, targetPlanetWorldX - sourcePlanetWorldX);
+        const lineStartX = sourcePlanetWorldX + Math.cos(angleFromSourceToTarget) * tempFixedInvasionLine.source.radius;
+        const lineStartY = sourcePlanetWorldY + Math.sin(angleFromSourceToTarget) * tempFixedInvasionLine.source.radius;
+
+        const lineEndX = targetPlanetWorldX - Math.cos(angleFromSourceToTarget) * tempFixedInvasionLine.target.radius;
+        const lineEndY = targetPlanetWorldY - Math.sin(angleFromSourceToTarget) * tempFixedInvasionLine.target.radius;
+
+        ctx.beginPath();
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.lineTo(lineEndX, lineEndY);
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)'; // Match cursor-following line
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const distance = Math.sqrt(Math.pow(lineEndX - lineStartX, 2) + Math.pow(lineEndY - lineStartY, 2));
+        const minArrowDrawDistance = 20 / camera.zoom;
+
+        if (distance > minArrowDrawDistance) {
+            const arrowLength = 10 / camera.zoom;
+            const arrowWidth = 5 / camera.zoom;
+
+            ctx.save();
+            ctx.translate(lineEndX, lineEndY);
+            ctx.rotate(angleFromSourceToTarget);
+            ctx.beginPath();
+            ctx.moveTo(-arrowLength, arrowWidth / 2);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-arrowLength, -arrowWidth / 2);
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+
+    // Draw pending invasion lines (staged invasions)
+    pendingInvasions.forEach(pending => {
+        let sourcePos = getPlanetCurrentWorldCoordinates(pending.source);
+        let targetPos = getPlanetCurrentWorldCoordinates(pending.target);
+
+        let sourceX = sourcePos.x;
+        let sourceY = sourcePos.y;
+        let targetX = targetPos.x;
+        let targetY = targetPos.y;
+
+        const angleFromSourceToTarget = Math.atan2(targetY - sourceY, targetX - sourceX);
+        const lineStartX = sourceX + Math.cos(angleFromSourceToTarget) * pending.source.radius;
+        const lineStartY = sourceY + Math.sin(angleFromSourceToTarget) * pending.source.radius;
+
+        const lineEndX = targetX - Math.cos(angleFromSourceToTarget) * pending.target.radius;
+        const lineEndY = targetY - Math.sin(angleFromSourceToTarget) * pending.target.radius;
+
+        ctx.beginPath();
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.lineTo(lineEndX, lineEndY);
         ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)'; // A subtle green for pending invasions
         ctx.lineWidth = 1 / camera.zoom;
         ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]); // Different dash for pending
         ctx.stroke();
         ctx.setLineDash([]); // Reset for other drawings
+
+        const distance = Math.sqrt(Math.pow(lineEndX - lineStartX, 2) + Math.pow(lineEndY - lineStartY, 2));
+        const minArrowDrawDistance = 20 / camera.zoom;
+
+        if (distance > minArrowDrawDistance) {
+            const arrowLength = 10 / camera.zoom;
+            const arrowWidth = 5 / camera.zoom;
+
+            ctx.save();
+            ctx.translate(lineEndX, lineEndY);
+            ctx.rotate(angleFromSourceToTarget);
+            ctx.beginPath();
+            ctx.moveTo(-arrowLength, arrowWidth / 2);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-arrowLength, -arrowWidth / 2);
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.4)'; // Match line color
+            ctx.fill();
+            ctx.restore();
+        }
     });
 
 
@@ -630,26 +672,14 @@ function animateSolarSystem() {
 
 function calculateTravelDuration(sourcePlanet, targetPlanet) {
     let sourceX, sourceY;
-    if (sourcePlanet.isElliptical) {
-        const unrotatedX = sourcePlanet.semiMajorAxis * Math.cos(sourcePlanet.angle);
-        const unrotatedY = sourcePlanet.semiMinorAxis * Math.sin(sourcePlanet.angle);
-        sourceX = unrotatedX * Math.cos(sourcePlanet.rotationAngle) - unrotatedY * Math.sin(sourcePlanet.rotationAngle);
-        sourceY = unrotatedX * Math.sin(sourcePlanet.rotationAngle) + unrotatedY * Math.cos(sourcePlanet.rotationAngle);
-    } else {
-        sourceX = Math.cos(sourcePlanet.angle) * sourcePlanet.orbitRadius;
-        sourceY = Math.sin(sourcePlanet.angle) * sourcePlanet.orbitRadius;
-    }
+    let sourcePos = getPlanetCurrentWorldCoordinates(sourcePlanet);
+    sourceX = sourcePos.x;
+    sourceY = sourcePos.y;
 
     let targetX, targetY;
-    if (targetPlanet.isElliptical) {
-        const unrotatedX = targetPlanet.semiMajorAxis * Math.cos(targetPlanet.angle);
-        const unrotatedY = targetPlanet.semiMinorAxis * Math.sin(targetPlanet.angle);
-        targetX = unrotatedX * Math.cos(targetPlanet.rotationAngle) - unrotatedY * Math.sin(targetPlanet.rotationAngle);
-        targetY = unrotatedX * Math.sin(targetPlanet.rotationAngle) + unrotatedY * Math.cos(targetPlanet.rotationAngle);
-    } else {
-        targetX = Math.cos(targetPlanet.angle) * targetPlanet.orbitRadius;
-        targetY = Math.sin(targetPlanet.angle) * targetPlanet.orbitRadius;
-    }
+    let targetPos = getPlanetCurrentWorldCoordinates(targetPlanet);
+    targetX = targetPos.x;
+    targetY = targetPos.y;
 
     const distance = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
     return distance / CONFIG.INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND * 1000;
@@ -791,10 +821,10 @@ document.addEventListener('DOMContentLoaded', () => {
         hidePlanetControlPanel();
     });
 
-    // NEW: Event listener for the Launch All Invasions button
+    // Event listener for the Launch All Invasions button
     launchAllInvasionsButton.addEventListener('click', () => {
         if (pendingInvasions.length === 0) {
-            showModal("No invasions are staged!", 'alert');
+            // Removed: showModal("No invasions are staged!", 'alert');
             return;
         }
 
@@ -804,16 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePlanetListItem(pending.source); // Update source planet units in list
 
             // Create active fleet
-            let sourcePlanetWorldX, sourcePlanetWorldY;
-            if (pending.source.isElliptical) {
-                const unrotatedX = pending.source.semiMajorAxis * Math.cos(pending.source.angle);
-                const unrotatedY = pending.source.semiMinorAxis * Math.sin(pending.source.angle);
-                sourcePlanetWorldX = unrotatedX * Math.cos(pending.source.rotationAngle) - unrotatedY * Math.sin(pending.source.rotationAngle);
-                sourcePlanetWorldY = unrotatedX * Math.sin(pending.source.rotationAngle) + unrotatedY * Math.cos(pending.source.rotationAngle);
-            } else {
-                sourcePlanetWorldX = Math.cos(pending.source.angle) * pending.source.orbitRadius;
-                sourcePlanetWorldY = Math.sin(pending.source.angle) * pending.source.orbitRadius;
-            }
+            let sourcePos = getPlanetCurrentWorldCoordinates(pending.source);
+            let sourcePlanetWorldX = sourcePos.x;
+            let sourcePlanetWorldY = sourcePos.y;
 
             activeFleets.push({
                 source: pending.source,
@@ -830,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingInvasions = []; // Clear all staged invasions
         launchAllInvasionsButton.style.display = 'none'; // Hide the button
         updatePlayerUnitDisplay(); // Update player's total unit display if needed
-        showModal("All staged invasions launched!", 'alert');
+        // Removed: showModal("All staged invasions launched!", 'alert');
     });
 
 
@@ -926,6 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             isDrawingInvasionLine = false;
                             canvas.style.cursor = 'default';
                         } else {
+                            // Store source and target for temporary fixed line
+                            tempFixedInvasionLine = { source: selectedSourcePlanet, target: clickedPlanet };
+                            isDrawingInvasionLine = false; // Stop cursor following line
+
                             // Pass source and target to the modal callback closure for invasion
                             const sourceForCallback = selectedSourcePlanet;
                             const targetForCallback = clickedPlanet;
@@ -937,7 +964,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 unitsToSend = Math.min(unitsToSend, sourceForCallback.units);
                                 if (unitsToSend === 0) {
                                     showModal("Not enough units available to send any.", 'alert');
-                                    // No need to reset source/line here, as mousedown will handle it
+                                    // No need to reset source/line here, as mousedown will handle it (or this callback does for valid cases)
+                                    // Make sure to reset tempFixedInvasionLine even if unitsToSend is 0
+                                    tempFixedInvasionLine = null;
+                                    selectedSourcePlanet = null;
+                                    canvas.style.cursor = 'default';
                                     return;
                                 }
 
@@ -951,6 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 launchAllInvasionsButton.style.display = 'block'; // Show launch button
 
                                 // Reset source and line drawing here AFTER staging
+                                tempFixedInvasionLine = null; // Clear the temporary fixed line
                                 selectedSourcePlanet = null;
                                 isDrawingInvasionLine = false;
                                 canvas.style.cursor = 'default';
@@ -960,8 +992,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else { // Clicked empty space while source was selected
                     showModal("Invasion cancelled.", 'alert');
                 }
-                // Always reset source and line drawing after phase 2 click, unless handled inside the modal callback
-                if (!gameModalBackdrop.classList.contains('active')) { // Only reset if modal didn't pop up
+                // If a modal didn't appear (e.g., "Cannot invade own planet"), reset selection immediately.
+                // If modal appeared, it's handled by its callback.
+                if (!gameModalBackdrop.classList.contains('active')) {
                     selectedSourcePlanet = null;
                     isDrawingInvasionLine = false;
                     canvas.style.cursor = 'default';
@@ -971,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (clickedPlanet) {
                     if (clickedPlanet.owner === 'player') {
                         selectedSourcePlanet = clickedPlanet;
-                        isDrawingInvasionLine = true;
+                        isDrawingInvasionLine = true; // Line follows cursor
                         canvas.style.cursor = 'crosshair';
                     } else {
                         showModal("You can only initiate invasions from your own planets!", 'alert');
@@ -1012,12 +1045,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
         currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
 
-        if (isDrawingInvasionLine) {
+        if (isDrawingInvasionLine) { // Only true when selecting target (cursor-following)
             e.preventDefault();
         } else if (isDragging) {
             e.preventDefault();
@@ -1039,21 +1072,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
-        // isDrawingInvasionLine is reset by mousedown logic itself
+        // isDrawingInvasionLine is reset by mousedown logic itself or modal callback
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
-        // Optionally, reset selectedSourcePlanet and isDrawingInvasionLine if mouse leaves canvas during selection
-        // For now, mousedown handles the reset on re-click or target click/cancel.
+        // If mouse leaves canvas during line drawing, cancel selection
+        if (isDrawingInvasionLine) {
+            selectedSourcePlanet = null;
+            isDrawingInvasionLine = false;
+            canvas.style.cursor = 'default';
+            // Optionally, show a "Invasion cancelled" modal here
+        }
     });
 
     // Re-enabled zoom for 'wheel' event by removing blocking conditions
     canvas.addEventListener('wheel', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
 
         e.preventDefault();
 
