@@ -71,6 +71,10 @@ const CONFIG = {
     MIN_UNITS_FOR_AI_PLANET: 50,
 
     INCOME_GENERATION_PER_PLAYER_PLANET: 1,
+
+    // NEW: Fleet ball size configuration
+    FLEET_BASE_RADIUS: 5, // Base radius in world units at zoom 1
+    FLEET_MAX_SCREEN_RADIUS_PX: 15, // Maximum size in pixels on screen
 };
 
 
@@ -104,6 +108,9 @@ let selectedSourcePlanet = null;
 let isDrawingInvasionLine = false;
 let currentMouseWorldX, currentMouseWorldY; // To store cursor position in world coords
 
+// NEW Global variable for pending invasions
+let pendingInvasions = [];
+
 // UI element references (declared globally, assigned in DOMContentLoaded)
 let titleScreen;
 let gameScreen;
@@ -124,10 +131,11 @@ let modalInput;
 let modalInputConfirm;
 let modalConfirm;
 
-// NEW UI element references for planet control panel
+// NEW UI element references for planet control panel and launch button
 let planetControlPanel;
 let controlPanelPlanetName;
 let closeControlPanelButton;
+let launchAllInvasionsButton;
 
 
 // --- Function Definitions (moved to top for scope) ---
@@ -345,7 +353,7 @@ function setInitialCameraZoom() {
     camera.targetZoom = camera.zoom; // Set target zoom to initial zoom
 }
 
-// NEW Helper function to get planet at coordinates
+// Helper function to get planet at coordinates
 function getPlanetAtCoordinates(worldX, worldY) {
     for (let i = 0; i < currentPlanets.length; i++) {
         const planet = currentPlanets[i];
@@ -527,7 +535,7 @@ function animateSolarSystem() {
         ctx.restore(); // Restore context
     });
 
-    // NEW: Draw invasion line if active
+    // Draw the temporary invasion line (following cursor)
     if (isDrawingInvasionLine && selectedSourcePlanet) {
         ctx.beginPath();
         let sourcePlanetWorldX, sourcePlanetWorldY;
@@ -543,7 +551,7 @@ function animateSolarSystem() {
 
         ctx.moveTo(sourcePlanetWorldX, sourcePlanetWorldY);
         ctx.lineTo(currentMouseWorldX, currentMouseWorldY);
-        ctx.strokeStyle = 'rgba(128, 255, 255, 0.4)'; // Lighter, semi-transparent cyan
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)'; // Brighter, semi-transparent cyan
         ctx.lineWidth = 0.5 / camera.zoom; // Skinny
         ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]); // Dotted line
         ctx.stroke();
@@ -565,16 +573,49 @@ function animateSolarSystem() {
             ctx.moveTo(-arrowLength, arrowWidth / 2);
             ctx.lineTo(0, 0);
             ctx.lineTo(-arrowLength, -arrowWidth / 2);
-            ctx.fillStyle = 'rgba(128, 255, 255, 0.4)'; // Match line color
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.7)'; // Match line color
             ctx.fill();
             ctx.restore();
         }
     }
 
+    // NEW: Draw pending invasion lines (staged invasions)
+    pendingInvasions.forEach(pending => {
+        ctx.beginPath();
+        let sourceX, sourceY, targetX, targetY;
+        if (pending.source.isElliptical) {
+            const unrotatedX = pending.source.semiMajorAxis * Math.cos(pending.source.angle);
+            const unrotatedY = pending.source.semiMinorAxis * Math.sin(pending.source.angle);
+            sourceX = unrotatedX * Math.cos(pending.source.rotationAngle) - unrotatedY * Math.sin(pending.source.rotationAngle);
+            sourceY = unrotatedX * Math.sin(pending.source.rotationAngle) + unrotatedY * Math.cos(pending.source.rotationAngle);
+        } else {
+            sourceX = Math.cos(pending.source.angle) * pending.source.orbitRadius;
+            sourceY = Math.sin(pending.source.angle) * pending.source.orbitRadius;
+        }
+        if (pending.target.isElliptical) {
+            const unrotatedX = pending.target.semiMajorAxis * Math.cos(pending.target.angle);
+            const unrotatedY = pending.target.semiMinorAxis * Math.sin(pending.target.angle);
+            targetX = unrotatedX * Math.cos(pending.target.rotationAngle) - unrotatedY * Math.sin(pending.target.rotationAngle);
+            targetY = unrotatedX * Math.sin(pending.target.rotationAngle) + unrotatedY * Math.cos(pending.target.rotationAngle);
+        } else {
+            targetX = Math.cos(pending.target.angle) * pending.target.orbitRadius;
+            targetY = Math.sin(pending.target.angle) * pending.target.orbitRadius;
+        }
+
+        ctx.moveTo(sourceX, sourceY);
+        ctx.lineTo(targetX, targetY);
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)'; // A subtle green for pending invasions
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]); // Different dash for pending
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset for other drawings
+    });
+
 
     activeFleets.forEach(fleet => {
+        const fleetRadiusRendered = Math.min(CONFIG.FLEET_BASE_RADIUS / camera.zoom, CONFIG.FLEET_MAX_SCREEN_RADIUS_PX); // Apply max pixel size
         ctx.beginPath();
-        ctx.arc(fleet.currentX, fleet.currentY, 8 / camera.zoom, 0, Math.PI * 2);
+        ctx.arc(fleet.currentX, fleet.currentY, fleetRadiusRendered, 0, Math.PI * 2);
         ctx.fillStyle = fleet.color;
         ctx.fill();
         ctx.strokeStyle = 'white';
@@ -683,7 +724,7 @@ function hideModal() {
     gameActive = true; // Resume game after modal closes
 }
 
-// NEW functions for planet control panel
+// Functions for planet control panel
 function showPlanetControlPanel(planet) {
     if (!planet) return;
     controlPanelPlanetName.textContent = `${planet.name} Controls (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
@@ -708,7 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx = canvas.getContext('2d');
     starterPlanetPanel = document.getElementById('starter-planet-panel');
     planetListPanel = document.getElementById('planet-list-panel');
-    planetList = document.getElementById('planet-list'); // Re-added planetList reference
+    planetList = document.getElementById('planet-list');
     playerUnitsPanel = document.getElementById('player-units-panel');
     playerUnitCountDisplay = document.getElementById('player-unit-count');
     playerIncomeCountDisplay = document.getElementById('player-income-count');
@@ -724,9 +765,10 @@ document.addEventListener('DOMContentLoaded', () => {
     planetControlPanel = document.getElementById('planet-control-panel');
     controlPanelPlanetName = document.getElementById('control-panel-planet-name');
     closeControlPanelButton = document.getElementById('close-control-panel');
+    launchAllInvasionsButton = document.getElementById('launch-all-invasions');
 
 
-    // Event listeners for modal buttons (from previous fix)
+    // Event listeners for modal buttons
     modalConfirm.addEventListener('click', () => {
         hideModal();
         if (modalCallback) {
@@ -739,7 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = parseInt(modalInput.value);
         hideModal();
         if (modalCallback) {
-            // Pass the input value to the callback. This needs to be correctly handled by the caller.
             modalCallback(value); 
             modalCallback = null;
         }
@@ -748,6 +789,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listener for the new planet control panel close button
     closeControlPanelButton.addEventListener('click', () => {
         hidePlanetControlPanel();
+    });
+
+    // NEW: Event listener for the Launch All Invasions button
+    launchAllInvasionsButton.addEventListener('click', () => {
+        if (pendingInvasions.length === 0) {
+            showModal("No invasions are staged!", 'alert');
+            return;
+        }
+
+        pendingInvasions.forEach(pending => {
+            // Deduct units from source planet
+            pending.source.units -= pending.units;
+            updatePlanetListItem(pending.source); // Update source planet units in list
+
+            // Create active fleet
+            let sourcePlanetWorldX, sourcePlanetWorldY;
+            if (pending.source.isElliptical) {
+                const unrotatedX = pending.source.semiMajorAxis * Math.cos(pending.source.angle);
+                const unrotatedY = pending.source.semiMinorAxis * Math.sin(pending.source.angle);
+                sourcePlanetWorldX = unrotatedX * Math.cos(pending.source.rotationAngle) - unrotatedY * Math.sin(pending.source.rotationAngle);
+                sourcePlanetWorldY = unrotatedX * Math.sin(pending.source.rotationAngle) + unrotatedY * Math.cos(pending.source.rotationAngle);
+            } else {
+                sourcePlanetWorldX = Math.cos(pending.source.angle) * pending.source.orbitRadius;
+                sourcePlanetWorldY = Math.sin(pending.source.angle) * pending.source.orbitRadius;
+            }
+
+            activeFleets.push({
+                source: pending.source,
+                target: pending.target,
+                units: pending.units,
+                departureTime: performance.now(),
+                travelDuration: calculateTravelDuration(pending.source, pending.target),
+                currentX: sourcePlanetWorldX,
+                currentY: sourcePlanetWorldY,
+                color: CONFIG.OWNER_COLORS['player'] // Fleets are player color
+            });
+        });
+
+        pendingInvasions = []; // Clear all staged invasions
+        launchAllInvasionsButton.style.display = 'none'; // Hide the button
+        updatePlayerUnitDisplay(); // Update player's total unit display if needed
+        showModal("All staged invasions launched!", 'alert');
     });
 
 
@@ -769,6 +852,8 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.targetZoom = camera.zoom;
         playerIncome = 0;
         activeFleets = [];
+        pendingInvasions = []; // Clear pending invasions on new game
+        launchAllInvasionsButton.style.display = 'none'; // Hide button on new game
         chosenStarterPlanet = null;
         selectedSourcePlanet = null; // Reset source selection on new game
         isDrawingInvasionLine = false; // Reset line drawing
@@ -812,7 +897,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // NEW: Left-click (LMB) for invasion initiation and camera dragging
+    // Left-click (LMB) for invasion initiation and camera dragging
     canvas.addEventListener('mousedown', (e) => {
         // Condition for blocking interaction when modal or control panel is active
         if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
@@ -836,8 +921,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else { // Valid target for invasion
                         if (selectedSourcePlanet.units === 0) {
                             showModal("The source planet has no units to send!", 'alert');
+                            // Reset source and line drawing immediately on this specific error
+                            selectedSourcePlanet = null;
+                            isDrawingInvasionLine = false;
+                            canvas.style.cursor = 'default';
                         } else {
-                            // FIX: Passed source and target directly to the modal callback closure
+                            // Pass source and target to the modal callback closure for invasion
                             const sourceForCallback = selectedSourcePlanet;
                             const targetForCallback = clickedPlanet;
 
@@ -848,35 +937,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                 unitsToSend = Math.min(unitsToSend, sourceForCallback.units);
                                 if (unitsToSend === 0) {
                                     showModal("Not enough units available to send any.", 'alert');
+                                    // No need to reset source/line here, as mousedown will handle it
                                     return;
                                 }
 
-                                sourceForCallback.units -= unitsToSend;
-                                updatePlayerUnitDisplay(); 
-                                updatePlanetListItem(sourceForCallback);
-
-                                let sourcePlanetWorldX, sourcePlanetWorldY;
-                                if (sourceForCallback.isElliptical) {
-                                    const unrotatedX = sourceForCallback.semiMajorAxis * Math.cos(sourceForCallback.angle);
-                                    const unrotatedY = sourceForCallback.semiMinorAxis * Math.sin(sourceForCallback.angle);
-                                    sourcePlanetWorldX = unrotatedX * Math.cos(sourceForCallback.rotationAngle) - unrotatedY * Math.sin(sourceForCallback.rotationAngle);
-                                    sourcePlanetWorldY = unrotatedX * Math.sin(sourceForCallback.rotationAngle) + unrotatedY * Math.cos(sourceForCallback.rotationAngle);
-                                } else {
-                                    sourcePlanetWorldX = Math.cos(sourceForCallback.angle) * sourceForCallback.orbitRadius;
-                                    sourcePlanetWorldY = Math.sin(sourceForCallback.angle) * sourceForCallback.orbitRadius;
-                                }
-
-                                activeFleets.push({
+                                // Stage the invasion instead of launching immediately
+                                pendingInvasions.push({
                                     source: sourceForCallback,
                                     target: targetForCallback,
                                     units: unitsToSend,
-                                    departureTime: performance.now(),
-                                    travelDuration: calculateTravelDuration(sourceForCallback, targetForCallback),
-                                    currentX: sourcePlanetWorldX,
-                                    currentY: sourcePlanetWorldY,
-                                    color: CONFIG.OWNER_COLORS['player']
+                                    color: CONFIG.OWNER_COLORS['player'] // Staged invasions are player color
                                 });
-                                // FIX: Reset source and line drawing HERE after the asynchronous modal callback completes
+                                launchAllInvasionsButton.style.display = 'block'; // Show launch button
+
+                                // Reset source and line drawing here AFTER staging
                                 selectedSourcePlanet = null;
                                 isDrawingInvasionLine = false;
                                 canvas.style.cursor = 'default';
@@ -885,11 +959,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else { // Clicked empty space while source was selected
                     showModal("Invasion cancelled.", 'alert');
-                    // FIX: Reset source and line drawing HERE after cancellation
+                }
+                // Always reset source and line drawing after phase 2 click, unless handled inside the modal callback
+                if (!gameModalBackdrop.classList.contains('active')) { // Only reset if modal didn't pop up
                     selectedSourcePlanet = null;
                     isDrawingInvasionLine = false;
                     canvas.style.cursor = 'default';
                 }
+
             } else { // Phase 1: No source selected
                 if (clickedPlanet) {
                     if (clickedPlanet.owner === 'player') {
@@ -910,7 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // NEW: Right-click (RMB) for planet control panel
+    // Right-click (RMB) for planet control panel
     canvas.addEventListener('contextmenu', (e) => {
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         e.preventDefault(); // Prevent default right-click context menu
@@ -935,7 +1012,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        // Removed planetControlPanel.classList.contains('active') from here so zoom works while panel is open
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
 
         currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
@@ -963,14 +1039,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        // Removed planetControlPanel.classList.contains('active') from here
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         // isDrawingInvasionLine is reset by mousedown logic itself
     });
 
     canvas.addEventListener('mouseleave', () => {
-        // Removed planetControlPanel.classList.contains('active') from here
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         isDragging = false;
         // Optionally, reset selectedSourcePlanet and isDrawingInvasionLine if mouse leaves canvas during selection
@@ -979,7 +1053,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Re-enabled zoom for 'wheel' event by removing blocking conditions
     canvas.addEventListener('wheel', (e) => {
-        // Removed planetControlPanel.classList.contains('active') from here so zoom works while panel is open
         if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
 
         e.preventDefault();
