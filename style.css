@@ -81,11 +81,11 @@ body {
 
 /* Planet List Panel specific styling */
 #planet-list-panel {
-    top: auto;
-    bottom: 20px;
+    top: 50%; /* Moved to middle */
+    transform: translateY(-50%); /* Centered vertically */
+    bottom: auto; /* Removed bottom positioning */
     right: 20px;
     left: auto;
-    transform: none;
     width: 180px;
     height: 300px;
     overflow-y: auto;
@@ -140,17 +140,17 @@ body {
     right: auto;
     bottom: auto;
     transform: none;
-    padding: 10px 15px;
-    font-size: 1.4em;
+    padding: 12px 18px; /* Slightly increased padding */
+    font-size: 1.5em; /* Slightly increased font size */
     min-width: 120px;
     text-align: left;
 }
 
 #player-units-panel #player-unit-count,
-#player-units-panel #player-energy-count {
+#player-units-panel #player-income-count { /* Updated for income */
     font-weight: bold;
     color: #00ff00;
-    text-shadow: 0 0 5px #0f0;
+    text-shadow: 0 0 3px #0f0; /* Slightly reduced text shadow intensity */
 }
 
 /* Styles for planet ownership indicators in list */
