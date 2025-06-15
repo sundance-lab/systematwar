@@ -32,7 +32,7 @@ const CONFIG = {
     MIN_ORBIT_SPEED: 0.00005,
     MAX_ORBIT_SPEED: 0.0006,
 
-    ELLIPTICAL_ORBIT_CHANCE: 0.15,
+    ELLIPTICAL_ORBIT_CHANCE: 0.25, // Increased irregular orbit chance
     ELLIPSE_ECCENTRICITY_MIN: 0.1,
     ELLIPSE_ECCENTRICITY_MAX: 0.8,
 
@@ -43,9 +43,11 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.02,
-    CAMERA_ZOOM_LERP_FACTOR: 0.02,
+    CAMERA_FOLLOW_LERP_FACTOR: 0.01, // Adjusted for overall slower movement
+    CAMERA_ZOOM_LERP_FACTOR: 0.01, // Adjusted for overall slower movement
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
+    CAMERA_SNAP_THRESHOLD_DISTANCE: 5, // New: Distance threshold for snapping
+    CAMERA_SNAP_THRESHOLD_ZOOM_DIFF: 0.01, // New: Zoom difference threshold for snapping
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
@@ -863,10 +865,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetY = Math.sin(camera.targetPlanet.angle) * camera.targetPlanet.orbitRadius;
             }
 
-            camera.x = camera.x + (targetX - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
-            camera.y = camera.y + (targetY - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+            // Calculate current distance and zoom difference to target for snapping
+            const currentDistance = Math.sqrt(
+                Math.pow(targetX - camera.x, 2) +
+                Math.pow(targetY - camera.y, 2)
+            );
+            const currentZoomDiff = Math.abs(camera.targetZoom - camera.zoom);
 
-            camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR;
+            // Snap to target if close enough to remove the slowdown
+            if (currentDistance < CONFIG.CAMERA_SNAP_THRESHOLD_DISTANCE && currentZoomDiff < CONFIG.CAMERA_SNAP_THRESHOLD_ZOOM_DIFF) {
+                camera.x = targetX;
+                camera.y = targetY;
+                camera.zoom = camera.targetZoom;
+            } else {
+                camera.x = camera.x + (targetX - camera.x) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+                camera.y = camera.y + (targetY - camera.y) * CONFIG.CAMERA_FOLLOW_LERP_FACTOR;
+                camera.zoom = camera.zoom + (camera.targetZoom - camera.zoom) * CONFIG.CAMERA_ZOOM_LERP_FACTOR;
+            }
             camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
         }
 
