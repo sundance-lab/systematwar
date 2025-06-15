@@ -43,8 +43,8 @@ const CONFIG = {
     CAMERA_MAX_ZOOM: 50,
     INITIAL_VIEW_PADDING_FACTOR: 1.2,
 
-    CAMERA_FOLLOW_LERP_FACTOR: 0.02, // Adjusted for smoother movement
-    CAMERA_ZOOM_LERP_FACTOR: 0.02, // Adjusted for smoother zoom
+    CAMERA_FOLLOW_LERP_FACTOR: 0.02,
+    CAMERA_ZOOM_LERP_FACTOR: 0.02,
     CAMERA_FOLLOW_ZOOM_TARGET: 3.0,
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     color: CONFIG.OWNER_COLORS['player']
                 });
 
-                showModal(`${unitsToSend} units dispatched from ${chosenStarterPlanet.name} to ${targetPlanet.name}!`, 'alert');
+                // Removed: showModal(`${unitsToSend} units dispatched from ${chosenStarterPlanet.name} to ${targetPlanet.name}!`, 'alert');
             });
 
         } else {
@@ -385,9 +385,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (winner === 'attacker') {
             resultMessage = `Invasion successful! Your ${attackerUnits} units defeated ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
-            resultMessage += `\n${remainingAttackerUnits} units fought valiantly and secured the planet.`;
+            resultMessage += `\n${remainingAttackerUnits} units remain and claim the planet for you.`; // Updated message: units remain
             targetPlanet.owner = 'player';
-            targetPlanet.units = 0; // Attacker's remaining units DO NOT garrison the planet (fight to the last soldier)
+            targetPlanet.units = remainingAttackerUnits; // Attacker's remaining units now garrison the planet
             updatePlanetListItem(targetPlanet);
         } else {
             resultMessage = `Invasion failed! Your ${attackerUnits} units were defeated by ${targetPlanet.owner}'s ${defenderUnits} units on ${targetPlanet.name}.`;
@@ -595,7 +595,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                                            (currentPlanets.length > 0 ? currentPlanets[currentPlanets.length -1].radius : 0) +
                                                            planetRadius + minPlanetClearance;
             
-            // Ensure planet's closest edge is outside the sun's edge + clearance
             const minOrbitFromStarEdge = currentStarRadius + planetRadius + minPlanetClearance;
 
 
@@ -604,11 +603,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let potentialOrbitRadius = previousOrbitRadius + minSpacingBetweenOrbits + Math.random() * (maxSpacingBetweenOrbits - minSpacingBetweenOrbits);
 
-            // Use Math.max to ensure all minimums are met
             let actualOrbitRadius = Math.max(potentialOrbitRadius, minimumOrbitDistanceFromPreviousPlanet, minOrbitFromStarEdge);
 
             if (actualOrbitRadius > maxOverallOrbitRadius) {
-                 // Check if both previous and star edge minimums exceed max overall, then break
                  if (minimumOrbitDistanceFromPreviousPlanet > maxOverallOrbitRadius && minOrbitFromStarEdge > maxOverallOrbitRadius) {
                      break;
                  }
@@ -669,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ownerIndicator.classList.add('owner-indicator');
             ownerIndicator.classList.add(`owner-${planet.owner}`);
 
-            const planetNameText = document.createTextNode(`${planet.name} (${planet.units})`); // Removed "P${index + 1}: "
+            const planetNameText = document.createTextNode(`${planet.name} (${planet.units})`);
 
             listItem.appendChild(ownerIndicator);
             listItem.appendChild(planetNameText);
