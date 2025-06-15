@@ -147,7 +147,7 @@ body {
 }
 
 #player-units-panel #player-unit-count,
-#player-units-panel #player-energy-count { /* Added energy count to bold/color style */
+#player-units-panel #player-energy-count {
     font-weight: bold;
     color: #00ff00;
     text-shadow: 0 0 5px #0f0;
