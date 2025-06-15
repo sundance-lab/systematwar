@@ -50,17 +50,7 @@ const CONFIG = {
 
     PLANET_COUNTER_UPDATE_INTERVAL_MS: 1000,
 
-    ASTEROID_HIT_POINTS: 50,
-
-    ASTEROID_SPAWN_INTERVAL_MS: 500,
-    ASTEROID_MIN_RADIUS: 3,
-    ASTEROID_MAX_RADIUS: 10,
-    ASTEROID_MIN_SPEED: 0.1,
-    ASTEROID_MAX_SPEED: 0.5,
-    ASTEROID_SPAWN_DISTANCE_FROM_PLANET: 2000,
-    ASTEROID_OFFSCREEN_THRESHOLD: 3000,
-    ASTEROID_LIFETIME_MS: 3000,
-    MAX_ASTEROIDS_ON_SCREEN: 50,
+    // Removed ASTEROID related configs
 
     INITIAL_PLAYER_UNITS: 1000,
     STARTER_PLANET_INITIAL_UNITS: 0,
@@ -104,12 +94,12 @@ let lastMouseX, lastMouseY;
 let selectingStarterPlanet = false;
 let gameActive = false;
 let playerIncome = 0;
-let asteroids = [];
+// Removed: let asteroids = [];
 let chosenStarterPlanet = null;
 let activeFleets = [];
 let animationFrameId;
 let planetCounterInterval = null;
-let asteroidSpawnInterval = null;
+// Removed: let asteroidSpawnInterval = null;
 let planetUnitGenerationInterval = null;
 let modalCallback = null;
 
@@ -298,43 +288,7 @@ function updatePlayerIncomeDisplay() {
     playerIncomeCountDisplay.textContent = playerIncome;
 }
 
-function spawnAsteroid() {
-    if (!chosenStarterPlanet || asteroids.length >= CONFIG.MAX_ASTEROIDS_ON_SCREEN) {
-        return;
-    }
-
-    let planetCurrentX, planetCurrentY;
-    if (chosenStarterPlanet.isElliptical) {
-        const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-        const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
-        planetCurrentX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
-        planetCurrentY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
-    } else {
-        planetCurrentX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-        planetCurrentY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-    }
-
-    const asteroidRadius = Math.floor(Math.random() * (CONFIG.ASTEROID_MAX_RADIUS - CONFIG.ASTEROID_MIN_RADIUS + 1)) + CONFIG.ASTEROID_MIN_RADIUS;
-    const asteroidSpeed = Math.random() * (CONFIG.ASTEROID_MAX_SPEED - CONFIG.ASTEROID_MIN_SPEED) + CONFIG.ASTEROID_MIN_SPEED;
-
-    const spawnAngle = Math.random() * Math.PI * 2;
-    const spawnX = planetCurrentX + Math.cos(spawnAngle) * CONFIG.ASTEROID_SPAWN_DISTANCE_FROM_PLANET;
-    const spawnY = planetCurrentY + Math.sin(spawnAngle) * CONFIG.ASTEROID_SPAWN_DISTANCE_FROM_PLANET;
-
-    const angleToPlanet = Math.atan2(planetCurrentY - spawnY, planetCurrentX - spawnX);
-    const velocityX = Math.cos(angleToPlanet) * asteroidSpeed;
-    const velocityY = Math.sin(angleToPlanet) * asteroidSpeed;
-
-    asteroids.push({
-        x: spawnX,
-        y: spawnY,
-        radius: asteroidRadius,
-        color: `hsl(${Math.random() * 360}, 20%, 40%)`,
-        velocityX: velocityX,
-        velocityY: velocityY,
-        spawnTime: performance.now()
-    });
-}
+// Removed spawnAsteroid function
 
 function setInitialCameraZoom() {
     let maxWorldExtent = currentStarRadius;
@@ -362,16 +316,7 @@ function animateSolarSystem() {
         planet.angle += planet.speed;
     });
 
-    // 2. Update asteroid positions and despawn
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-        const asteroid = asteroids[i];
-        if (performance.now() - asteroid.spawnTime > CONFIG.ASTEROID_LIFETIME_MS) {
-            asteroids.splice(i, 1);
-            continue;
-        }
-        asteroid.x += asteroid.velocityX;
-        asteroid.y += asteroid.velocityY;
-    }
+    // Removed: 2. Update asteroid positions and despawn (entire loop)
 
     // 3. Update active invasion fleets
     for (let i = activeFleets.length - 1; i >= 0; i--) {
@@ -521,15 +466,7 @@ function animateSolarSystem() {
         ctx.restore(); // Restore context
     });
 
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-        const asteroid = asteroids[i];
-        if (performance.now() - asteroid.spawnTime > CONFIG.ASTEROID_LIFETIME_MS) {
-            asteroids.splice(i, 1);
-            continue;
-        }
-        asteroid.x += asteroid.velocityX;
-        asteroid.y += asteroid.velocityY;
-    }
+    // Removed asteroid drawing and despawn loop here
 
     activeFleets.forEach(fleet => {
         ctx.beginPath();
@@ -683,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
         camera.activeListItem = null;
         camera.targetZoom = camera.zoom;
         playerIncome = 0;
-        asteroids = [];
+        // Removed: asteroids = [];
         activeFleets = [];
         chosenStarterPlanet = null;
         updatePlayerIncomeDisplay();
@@ -717,8 +654,9 @@ document.addEventListener('DOMContentLoaded', () => {
         gameActive = true;
         console.log("Game state after Play: gameActive=", gameActive, "selectingStarterPlanet=", selectingStarterPlanet);
 
-        if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
-        asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
+        // Removed: asteroidSpawnInterval setup
+        // if (asteroidSpawnInterval) clearInterval(asteroidSpawnInterval);
+        // asteroidSpawnInterval = setInterval(spawnAsteroid, CONFIG.ASTEROID_SPAWN_INTERVAL_MS);
 
         if (planetCounterInterval) clearInterval(planetCounterInterval);
         planetCounterInterval = setInterval(updatePlanetCounters, CONFIG.PLANET_COUNTER_UPDATE_INTERVAL_MS);
@@ -867,14 +805,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.button === 0) { // Left mouse button
             e.preventDefault();
-            let clickHandled = false;
 
             const mouseX = e.clientX;
             const mouseY = e.clientY;
             const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
             const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
 
-            let clickedPlanet = null; // Still needed for asteroid hit target and general click area
+            let clickedPlanet = null;
             for (let i = 0; i < currentPlanets.length; i++) {
                 const planet = currentPlanets[i];
                 let planetWorldX, planetWorldY;
@@ -899,47 +836,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            let asteroidHit = false;
-            for (let i = asteroids.length - 1; i >= 0; i--) {
-                const asteroid = asteroids[i];
-                const distance = Math.sqrt(
-                    Math.pow(worldX - asteroid.x, 2) +
-                    Math.pow(worldY - asteroid.y, 2)
-                );
-
-                if (distance < asteroid.radius) {
-                    if (chosenStarterPlanet) { // Only hit asteroid if starter planet is chosen
-                        chosenStarterPlanet.units += CONFIG.ASTEROID_HIT_POINTS;
-                        updatePlayerUnitDisplay();
-                        updatePlanetListItem(chosenStarterPlanet);
-                    }
-                    asteroids.splice(i, 1);
-                    asteroidHit = true;
-                    clickHandled = true;
-                    break;
-                }
+            // Only start dragging if no planet was clicked and not focusing on a planet
+            if (!clickedPlanet && !camera.targetPlanet) {
+                isDragging = true;
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
             }
-
-            // If not an asteroid hit, LMB does nothing for now.
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
-        // isDragging logic removed for LMB
+        
+        if (isDragging) {
+            const deltaX = e.clientX - lastMouseX;
+            const deltaY = e.clientY - lastMouseY;
+
+            camera.x -= deltaX / camera.zoom * camera.dragSensitivity;
+            camera.y -= deltaY / camera.zoom * camera.dragSensitivity;
+
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        }
     });
 
     canvas.addEventListener('mouseup', (e) => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
-        // isDragging logic removed for LMB
+        isDragging = false;
     });
 
     canvas.addEventListener('mouseleave', () => {
         if (!gameActive) return;
         if (gameModalBackdrop.classList.contains('active')) return;
-        // isDragging logic removed for LMB
+        isDragging = false;
     });
 
 
