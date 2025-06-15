@@ -242,14 +242,18 @@ body {
 #planet-control-panel {
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%); /* Center it initially */
+    /* No initial transform property here, will be set by JS for dragging */
     width: 300px;
-    height: 250px;
+    /* Increased height to accommodate new content */
+    min-height: 250px; 
     padding: 20px;
     box-sizing: border-box;
     text-align: center;
+    /* Added cursor for dragging feedback */
+    cursor: grab;
 }
 
+/* Add specific styles for elements within the control panel */
 #planet-control-panel h2 {
     color: #00ff00;
     margin-top: 0;
@@ -257,6 +261,12 @@ body {
     font-size: 1.5em;
     border-bottom: 1px solid rgba(0, 255, 0, 0.3);
     padding-bottom: 5px;
+    cursor: grab; /* Cursor for dragging on title too */
+}
+
+#planet-control-panel p {
+    font-size: 1.1em;
+    margin-bottom: 8px;
 }
 
 #planet-control-panel button {
@@ -275,7 +285,25 @@ body {
     background-color: #006400;
 }
 
-/* NEW: Launch All Invasions Button */
+/* NEW: Building Slots Container and individual slot styling */
+#panel-building-slots {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: center;
+}
+.building-slot {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px dashed rgba(0, 255, 0, 0.3);
+    padding: 5px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    color: rgba(0, 255, 0, 0.7);
+}
+
+
+/* Launch All Invasions Button */
 #launch-all-invasions {
     position: absolute;
     bottom: 20px;
