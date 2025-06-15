@@ -546,8 +546,8 @@ function animateSolarSystem() {
 
         // FIX: Name and units overlap - adjusted font sizes and offsets
         const nameFontSize = Math.max(10, 18 / camera.zoom); // Made smaller
-        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset for name
-        ctx.font = `${nameFontSize}px 'Space Mono', monospace`; // Immersive font
+        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom); // Increased offset
+        ctx.font = `${nameFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -555,7 +555,7 @@ function animateSolarSystem() {
 
         // Draw units count on planet
         const unitsFontSize = Math.max(8, 12 / camera.zoom); // Made smaller
-        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset for units
+        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom); // Increased offset
         ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
         ctx.fillStyle = CONFIG.OWNER_COLORS[planet.owner]; // Color by owner
         ctx.fillText(`${planet.units}`, 0, -unitsOffset);
@@ -738,7 +738,7 @@ function showModal(message, type, callback = null) {
         modalInputArea.style.display = 'flex';
         modalConfirm.style.display = 'none';
         modalInputConfirm.style.display = 'block';
-        modalInputCancelButton.style.display = 'block'; // Show cancel button for prompt
+        modalInputCancelButton.style.display = 'block';
         modalInput.value = '';
         modalInput.focus();
     } else {
@@ -840,10 +840,9 @@ function showPlanetControlPanel(planet) {
             
             if (planet.owner === 'player') {
                 slotDiv.addEventListener('click', () => {
-                    hideBuildingOptionsSubpanel(); // Hide previous options if open
-                    // Set current context for building options (for the subpanel title)
+                    hideBuildingOptionsSubpanel();
                     buildingOptionsPlanetName.textContent = `Build on ${planet.name} (Slot ${i + 1})`;
-                    buildingOptionsButtonsContainer.innerHTML = ''; // Clear existing buttons
+                    buildingOptionsButtonsContainer.innerHTML = '';
                     for (const buildingType in CONFIG.BUILDINGS) {
                         if (CONFIG.BUILDINGS.hasOwnProperty(buildingType)) {
                             const buildingData = CONFIG.BUILDINGS[buildingType];
@@ -913,7 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Building Options Sub-panel UI element assignments
     buildingOptionsSubpanel = document.getElementById('building-options-subpanel');
-    closeBuildingOptionsXButton = buildingOptionsSubpanel.querySelector('.close-button-x'); // Get the 'X' button inside the subpanel
+    closeBuildingOptionsXButton = buildingOptionsSubpanel.querySelector('.close-button-x');
     buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3');
     buildingOptionsButtonsContainer = document.getElementById('building-options-buttons');
 
@@ -1198,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         isDrawingInvasionLine = true;
                         canvas.style.cursor = 'crosshair';
                     } else {
-                        showModal("You can only initiate operations from your own planets!", 'alert');
+                        // Removed: showModal("You can only initiate operations from your own planets!", 'alert');
                     }
                 } else { // Clicked empty space, start dragging if not focusing a planet
                     if (!camera.targetPlanet) {
@@ -1214,10 +1213,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Right-click (RMB) for planet control panel
     canvas.addEventListener('contextmenu', (e) => {
-        if (!gameActive || gameModalBackdrop.classList.contains('active') || buildingOptionsSubpanel.classList.contains('active')) return;
+        // Block interaction if game is paused by a game modal
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
         e.preventDefault();
 
-        if (e.target !== canvas) {
+        // Determine if the click happened ON a UI panel
+        const clickedOnControlPanel = e.target === planetControlPanel || e.target.closest('#planet-control-panel');
+        const clickedOnBuildingSubpanel = e.target === buildingOptionsSubpanel || e.target.closest('#building-options-subpanel');
+
+        // If click is directly on an open UI panel, do nothing, let its own listeners handle it
+        if (clickedOnControlPanel || clickedOnBuildingSubpanel) {
             return;
         }
 
@@ -1229,13 +1234,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
 
         if (clickedPlanet) {
-            hideModal();
-            hideBuildingOptionsSubpanel();
-            hidePlanetControlPanel();
-            showPlanetControlPanel(clickedPlanet);
-        } else {
+            hideModal(); // Hide any game modal
+            hideBuildingOptionsSubpanel(); // Hide building selection subpanel
+            // If clicking the same planet's panel, close it; otherwise, show the new planet's panel
+            if (planetControlPanel.classList.contains('active') && controlPanelName.textContent.includes(clickedPlanet.name)) {
+                hidePlanetControlPanel();
+            } else {
+                showPlanetControlPanel(clickedPlanet);
+            }
+        } else { // Clicked empty space
+            // Dismiss open panels if clicking empty space
             if (planetControlPanel.classList.contains('active')) {
                 hidePlanetControlPanel();
+            }
+            if (buildingOptionsSubpanel.classList.contains('active')) {
+                hideBuildingOptionsSubpanel();
             }
         }
     });
