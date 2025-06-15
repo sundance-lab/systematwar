@@ -99,6 +99,11 @@ let planetCounterInterval = null;
 let planetUnitGenerationInterval = null;
 let modalCallback = null;
 
+// NEW Global variables for invasion line drawing
+let selectedSourcePlanet = null;
+let isDrawingInvasionLine = false;
+let currentMouseWorldX, currentMouseWorldY; // To store cursor position in world coords
+
 // UI element references (declared globally, assigned in DOMContentLoaded)
 let titleScreen;
 let gameScreen;
@@ -107,7 +112,6 @@ let canvas;
 let ctx; // Context for canvas
 let starterPlanetPanel;
 let planetListPanel;
-let planetList;
 let playerUnitsPanel;
 let playerUnitCountDisplay;
 let playerIncomeCountDisplay;
@@ -118,6 +122,11 @@ let modalInputArea;
 let modalInput;
 let modalInputConfirm;
 let modalConfirm;
+
+// NEW UI element references for planet control panel
+let planetControlPanel;
+let controlPanelPlanetName;
+let closeControlPanelButton;
 
 
 // --- Function Definitions (moved to top for scope) ---
@@ -277,6 +286,15 @@ function updatePlanetCounters() {
 }
 
 function updatePlayerUnitDisplay() {
+    // This function currently updates based on chosenStarterPlanet
+    // To show total player units across all planets, you'd need to sum them:
+    // let totalUnits = 0;
+    // currentPlanets.forEach(planet => {
+    //     if (planet.owner === 'player') {
+    //         totalUnits += planet.units;
+    //     }
+    // });
+    // playerUnitCountDisplay.textContent = totalUnits;
     playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
 }
 
@@ -312,6 +330,32 @@ function setInitialCameraZoom() {
     camera.targetZoom = camera.zoom; // Set target zoom to initial zoom
 }
 
+// NEW Helper function to get planet at coordinates
+function getPlanetAtCoordinates(worldX, worldY) {
+    for (let i = 0; i < currentPlanets.length; i++) {
+        const planet = currentPlanets[i];
+        let planetWorldX, planetWorldY;
+        if (planet.isElliptical) {
+            const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
+            const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
+            planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
+            planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
+        } else {
+            planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
+            planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
+        }
+
+        const distance = Math.sqrt(
+            Math.pow(worldX - planetWorldX, 2) +
+            Math.pow(worldY - planetWorldY, 2)
+        );
+
+        if (distance < planet.radius) {
+            return planet;
+        }
+    }
+    return null;
+}
 
 function animateSolarSystem() {
     // --- UPDATE PHASE ---
@@ -329,7 +373,7 @@ function animateSolarSystem() {
         let sourceX, sourceY, targetX, targetY;
         if (fleet.source.isElliptical) {
             const unrotatedX = fleet.source.semiMajorAxis * Math.cos(fleet.source.angle);
-            const unrotatedY = fleet.semiMinorAxis * Math.sin(fleet.source.angle);
+            const unrotatedY = fleet.source.semiMinorAxis * Math.sin(fleet.source.angle);
             sourceX = unrotatedX * Math.cos(fleet.source.rotationAngle) - unrotatedY * Math.sin(fleet.source.rotationAngle);
             sourceY = unrotatedX * Math.sin(fleet.source.rotationAngle) + unrotatedY * Math.cos(fleet.source.rotationAngle);
         } else {
@@ -468,6 +512,44 @@ function animateSolarSystem() {
         ctx.restore(); // Restore context
     });
 
+    // NEW: Draw invasion line if active
+    if (isDrawingInvasionLine && selectedSourcePlanet) {
+        ctx.beginPath();
+        let sourcePlanetWorldX, sourcePlanetWorldY;
+        if (selectedSourcePlanet.isElliptical) {
+            const unrotatedX = selectedSourcePlanet.semiMajorAxis * Math.cos(selectedSourcePlanet.angle);
+            const unrotatedY = selectedSourcePlanet.semiMinorAxis * Math.sin(selectedSourcePlanet.angle);
+            sourcePlanetWorldX = unrotatedX * Math.cos(selectedSourcePlanet.rotationAngle) - unrotatedY * Math.sin(selectedSourcePlanet.rotationAngle);
+            sourcePlanetWorldY = unrotatedX * Math.sin(selectedSourcePlanet.rotationAngle) + unrotatedY * Math.cos(selectedSourcePlanet.rotationAngle);
+        } else {
+            sourcePlanetWorldX = Math.cos(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
+            sourcePlanetWorldY = Math.sin(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
+        }
+
+        ctx.moveTo(sourcePlanetWorldX, sourcePlanetWorldY);
+        ctx.lineTo(currentMouseWorldX, currentMouseWorldY);
+        ctx.strokeStyle = '#00FFFF'; // Cyan line for drawing invasion path
+        ctx.lineWidth = 5 / camera.zoom; // Make it visible
+        ctx.stroke();
+
+        // Draw an arrowhead (simple triangle)
+        const angle = Math.atan2(currentMouseWorldY - sourcePlanetWorldY, currentMouseWorldX - sourcePlanetWorldX);
+        const arrowLength = 20 / camera.zoom;
+        const arrowWidth = 10 / camera.zoom;
+
+        ctx.save();
+        ctx.translate(currentMouseWorldX, currentMouseWorldY);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(-arrowLength, arrowWidth / 2);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(-arrowLength, -arrowWidth / 2);
+        ctx.fillStyle = '#00FFFF';
+        ctx.fill();
+        ctx.restore();
+    }
+
+
     activeFleets.forEach(fleet => {
         ctx.beginPath();
         ctx.arc(fleet.currentX, fleet.currentY, 8 / camera.zoom, 0, Math.PI * 2);
@@ -568,7 +650,7 @@ function showModal(message, type, callback = null) {
 
     gameModalBackdrop.classList.add('active');
     gameModal.classList.add('active');
-    gameActive = false;
+    gameActive = false; // Pause game while modal is open
     console.log("Modal display state: backdrop active=", gameModalBackdrop.classList.contains('active'), "modal active=", gameModal.classList.contains('active'));
 }
 
@@ -576,7 +658,21 @@ function hideModal() {
     console.log("HIDE MODAL CALLED.");
     gameModalBackdrop.classList.remove('active');
     gameModal.classList.remove('active');
-    gameActive = true;
+    gameActive = true; // Resume game after modal closes
+}
+
+// NEW functions for planet control panel
+function showPlanetControlPanel(planet) {
+    if (!planet) return;
+    controlPanelPlanetName.textContent = `${planet.name} Controls (${planet.owner === 'player' ? 'Your' : planet.owner})`; 
+    // You can add more planet details or control buttons here later
+    planetControlPanel.classList.add('active');
+    gameActive = false; // Pause game while panel is open
+}
+
+function hidePlanetControlPanel() {
+    planetControlPanel.classList.remove('active');
+    gameActive = true; // Resume game
 }
 
 
@@ -590,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx = canvas.getContext('2d');
     starterPlanetPanel = document.getElementById('starter-planet-panel');
     planetListPanel = document.getElementById('planet-list-panel');
-    planetList = document.getElementById('planet-list');
+    planetList = document.getElementById('planet-list'); // Re-added planetList reference
     playerUnitsPanel = document.getElementById('player-units-panel');
     playerUnitCountDisplay = document.getElementById('player-unit-count');
     playerIncomeCountDisplay = document.getElementById('player-income-count');
@@ -602,12 +698,18 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInputConfirm = document.getElementById('modal-input-confirm');
     modalConfirm = document.getElementById('modal-confirm');
 
-    // --- ADDED NEW EVENT LISTENERS FOR MODAL BUTTONS ---
+    // NEW UI element assignments
+    planetControlPanel = document.getElementById('planet-control-panel');
+    controlPanelPlanetName = document.getElementById('control-panel-planet-name');
+    closeControlPanelButton = document.getElementById('close-control-panel');
+
+
+    // Event listeners for modal buttons (from previous fix)
     modalConfirm.addEventListener('click', () => {
         hideModal();
         if (modalCallback) {
             modalCallback();
-            modalCallback = null; // Clear callback after use
+            modalCallback = null;
         }
     });
 
@@ -615,11 +717,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = parseInt(modalInput.value);
         hideModal();
         if (modalCallback) {
-            modalCallback(value); // Pass the input value to the callback
-            modalCallback = null; // Clear callback after use
+            modalCallback(value);
+            modalCallback = null;
         }
     });
-    // --- END OF NEW EVENT LISTENERS ---
+
+    // Event listener for the new planet control panel close button
+    closeControlPanelButton.addEventListener('click', () => {
+        hidePlanetControlPanel();
+    });
+
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -640,6 +747,9 @@ document.addEventListener('DOMContentLoaded', () => {
         playerIncome = 0;
         activeFleets = [];
         chosenStarterPlanet = null;
+        selectedSourcePlanet = null; // Reset source selection on new game
+        isDrawingInvasionLine = false; // Reset line drawing
+        canvas.style.cursor = 'default'; // Reset cursor
         updatePlayerIncomeDisplay();
 
         populatePlanetList();
@@ -678,191 +788,132 @@ document.addEventListener('DOMContentLoaded', () => {
         planetUnitGenerationInterval = setInterval(generatePlanetUnits, CONFIG.PLANET_UNIT_GENERATION_INTERVAL_MS);
     });
 
-    canvas.addEventListener('contextmenu', (e) => {
-        if (!gameActive) return;
-        e.preventDefault();
 
-        if (gameModalBackdrop.classList.contains('active')) return;
-
-        if (!chosenStarterPlanet) {
-            showModal("You must choose your starter planet first!", 'alert');
-            return;
-        }
-        if (selectingStarterPlanet) {
-            showModal("Please click 'Continue' after choosing your starter planet.", 'alert');
-            return;
-        }
+    // NEW: Left-click (LMB) for invasion initiation and camera dragging
+    canvas.addEventListener('mousedown', (e) => {
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
 
         const mouseX = e.clientX;
         const mouseY = e.clientY;
         const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
         const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
-        console.log(`CONTEXTMENU: Mouse click world coords: (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
 
-        let targetPlanet = null;
-        for (let i = 0; i < currentPlanets.length; i++) {
-            const planet = currentPlanets[i];
-            let planetWorldX, planetWorldY;
-            if (planet.isElliptical) {
-                const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-                const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-                planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-                planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-            } else {
-                planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
-                planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
-            }
-
-            const distance = Math.sqrt(
-                Math.pow(worldX - planetWorldX, 2) +
-                Math.pow(worldY - planetWorldY, 2)
-            );
-
-            if (distance < planet.radius) {
-                targetPlanet = planet;
-                console.log(`CONTEXTMENU: Hit planet: ${planet.name}`);
-                break;
-            }
-        }
-
-        if (targetPlanet) {
-            console.log(`CONTEXTMENU: Target planet detected: ${targetPlanet.name}. Owner: ${targetPlanet.owner}`);
-            if (targetPlanet.owner === 'player') {
-                showModal("You already control this planet!", 'alert');
-                return;
-            }
-            if (chosenStarterPlanet.units === 0) {
-                 showModal("Your home planet has no units to send!", 'alert');
-                 return;
-            }
-
-            showModal(`Send units from ${chosenStarterPlanet.name} to invade ${targetPlanet.name} (currently ${targetPlanet.owner} with ${targetPlanet.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
-                console.log(`CONTEXTMENU: Units to send callback: ${unitsToSend}`);
-                if (isNaN(unitsToSend) || unitsToSend <= 0) { 
-                    // This validation will be handled by the clamp below
-                }
-                
-                // Clamp unitsToSend to available units on the starter planet
-                unitsToSend = Math.min(unitsToSend, chosenStarterPlanet.units);
-                if (unitsToSend === 0) { // If clamped to 0 due to insufficient units
-                    showModal("Not enough units available to send any.", 'alert');
-                    return;
-                }
-
-                chosenStarterPlanet.units -= unitsToSend;
-                updatePlayerUnitDisplay();
-                updatePlanetListItem(chosenStarterPlanet);
-
-                let sourcePlanetWorldX, sourcePlanetWorldY;
-                if (chosenStarterPlanet.isElliptical) {
-                    const unrotatedX = chosenStarterPlanet.semiMajorAxis * Math.cos(chosenStarterPlanet.angle);
-                    const unrotatedY = chosenStarterPlanet.semiMinorAxis * Math.sin(chosenStarterPlanet.angle);
-                    sourcePlanetWorldX = unrotatedX * Math.cos(chosenStarterPlanet.rotationAngle) - unrotatedY * Math.sin(chosenStarterPlanet.rotationAngle);
-                    sourcePlanetWorldY = unrotatedX * Math.sin(chosenStarterPlanet.rotationAngle) + unrotatedY * Math.cos(chosenStarterPlanet.rotationAngle);
-                } else {
-                    sourcePlanetWorldX = Math.cos(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-                    sourcePlanetWorldY = Math.sin(chosenStarterPlanet.angle) * chosenStarterPlanet.orbitRadius;
-                }
-
-                activeFleets.push({
-                    source: chosenStarterPlanet,
-                    target: targetPlanet,
-                    units: unitsToSend,
-                    departureTime: performance.now(),
-                    travelDuration: calculateTravelDuration(chosenStarterPlanet, targetPlanet),
-                    currentX: sourcePlanetWorldX,
-                    currentY: sourcePlanetWorldY,
-                    color: CONFIG.OWNER_COLORS['player']
-                });
-
-            });
-
-        } else {
-            // Right-clicking empty space now does nothing
-        }
-    });
-
-    canvas.addEventListener('wheel', (e) => {
-        if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return;
-
-        e.preventDefault();
-
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-
-        const worldXBefore = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
-        const worldYBefore = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
-
-        if (e.deltaY < 0) {
-            camera.zoom *= camera.scaleFactor;
-        } else {
-            camera.zoom /= camera.scaleFactor;
-        }
-
-        camera.zoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, Math.min(camera.zoom, CONFIG.CAMERA_MAX_ZOOM));
-        camera.targetZoom = camera.zoom;
-
-        if (!camera.targetPlanet) {
-            const worldXAfter = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
-            const worldYAfter = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
-
-            camera.x -= (worldXAfter - worldXBefore);
-            camera.y -= (worldYAfter - worldYBefore);
-        }
-    });
-
-    canvas.addEventListener('mousedown', (e) => {
-        if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return;
+        const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
 
         if (e.button === 0) { // Left mouse button
             e.preventDefault();
 
-            const mouseX = e.clientX;
-            const mouseY = e.clientY;
-            const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
-            const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+            if (selectedSourcePlanet) { // Phase 2: Source already selected, looking for target
+                if (clickedPlanet) {
+                    if (clickedPlanet === selectedSourcePlanet) {
+                        showModal("Cannot invade your own origin planet!", 'alert');
+                    } else if (clickedPlanet.owner === 'player') {
+                        showModal("You already control this planet!", 'alert');
+                    } else { // Valid target for invasion
+                        if (selectedSourcePlanet.units === 0) {
+                            showModal("The source planet has no units to send!", 'alert');
+                        } else {
+                            // Pass source and target to the modal callback for invasion
+                            showModal(`Send units from ${selectedSourcePlanet.name} (${selectedSourcePlanet.units} units) to invade ${clickedPlanet.name} (currently ${clickedPlanet.owner} with ${clickedPlanet.units} units)?\n\nEnter number of units:`, 'prompt', (unitsToSend) => {
+                                if (isNaN(unitsToSend) || unitsToSend <= 0) {
+                                    unitsToSend = 0; // Ensures 0 if invalid input
+                                }
+                                unitsToSend = Math.min(unitsToSend, selectedSourcePlanet.units);
+                                if (unitsToSend === 0) {
+                                    showModal("Not enough units available to send any.", 'alert');
+                                    return;
+                                }
 
-            let clickedPlanet = null;
-            for (let i = 0; i < currentPlanets.length; i++) {
-                const planet = currentPlanets[i];
-                let planetWorldX, planetWorldY;
-                if (planet.isElliptical) {
-                    const unrotatedX = planet.semiMajorAxis * Math.cos(planet.angle);
-                    const unrotatedY = planet.semiMinorAxis * Math.sin(planet.angle);
-                    planetWorldX = unrotatedX * Math.cos(planet.rotationAngle) - unrotatedY * Math.sin(planet.rotationAngle);
-                    planetWorldY = unrotatedX * Math.sin(planet.rotationAngle) + unrotatedY * Math.cos(planet.rotationAngle);
-                } else {
-                    planetWorldX = Math.cos(planet.angle) * planet.orbitRadius;
-                    planetWorldY = Math.sin(planet.angle) * planet.orbitRadius;
+                                selectedSourcePlanet.units -= unitsToSend;
+                                updatePlayerUnitDisplay(); 
+                                updatePlanetListItem(selectedSourcePlanet);
+
+                                let sourcePlanetWorldX, sourcePlanetWorldY;
+                                if (selectedSourcePlanet.isElliptical) {
+                                    const unrotatedX = selectedSourcePlanet.semiMajorAxis * Math.cos(selectedSourcePlanet.angle);
+                                    const unrotatedY = selectedSourcePlanet.semiMinorAxis * Math.sin(selectedSourcePlanet.angle);
+                                    sourcePlanetWorldX = unrotatedX * Math.cos(selectedSourcePlanet.rotationAngle) - unrotatedY * Math.sin(selectedSourcePlanet.rotationAngle);
+                                    sourcePlanetWorldY = unrotatedX * Math.sin(selectedSourcePlanet.rotationAngle) + unrotatedY * Math.cos(selectedSourcePlanet.rotationAngle);
+                                } else {
+                                    sourcePlanetWorldX = Math.cos(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
+                                    sourcePlanetWorldY = Math.sin(selectedSourcePlanet.angle) * selectedSourcePlanet.orbitRadius;
+                                }
+
+                                activeFleets.push({
+                                    source: selectedSourcePlanet,
+                                    target: clickedPlanet,
+                                    units: unitsToSend,
+                                    departureTime: performance.now(),
+                                    travelDuration: calculateTravelDuration(selectedSourcePlanet, clickedPlanet),
+                                    currentX: sourcePlanetWorldX,
+                                    currentY: sourcePlanetWorldY,
+                                    color: CONFIG.OWNER_COLORS['player']
+                                });
+                            });
+                        }
+                    }
+                } else { // Clicked empty space while source was selected
+                    showModal("Invasion cancelled.", 'alert');
                 }
+                // Reset source selection and line drawing after target selection or cancellation
+                selectedSourcePlanet = null;
+                isDrawingInvasionLine = false;
+                canvas.style.cursor = 'default';
 
-                const distance = Math.sqrt(
-                    Math.pow(worldX - planetWorldX, 2) +
-                    Math.pow(worldY - planetWorldY, 2)
-                );
-
-                if (distance < planet.radius) {
-                    clickedPlanet = planet;
-                    break;
+            } else { // Phase 1: No source selected
+                if (clickedPlanet) {
+                    if (clickedPlanet.owner === 'player') {
+                        selectedSourcePlanet = clickedPlanet;
+                        isDrawingInvasionLine = true;
+                        canvas.style.cursor = 'crosshair';
+                    } else {
+                        showModal("You can only initiate invasions from your own planets!", 'alert');
+                    }
+                } else { // Clicked empty space, start dragging if not focusing a planet
+                    if (!camera.targetPlanet) {
+                        isDragging = true;
+                        lastMouseX = mouseX;
+                        lastMouseY = mouseY;
+                    }
                 }
             }
+        }
+    });
 
-            // Only start dragging if no planet was clicked and not focusing on a planet
-            if (!clickedPlanet && !camera.targetPlanet) {
-                isDragging = true;
-                lastMouseX = mouseX;
-                lastMouseY = mouseY;
+    // NEW: Right-click (RMB) for planet control panel
+    canvas.addEventListener('contextmenu', (e) => {
+        if (!gameActive || gameModalBackdrop.classList.contains('active')) return;
+        e.preventDefault(); // Prevent default right-click context menu
+
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const worldX = camera.x + (mouseX - canvas.width / 2) / camera.zoom;
+        const worldY = camera.y + (mouseY - canvas.height / 2) / camera.zoom;
+
+        const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
+
+        if (clickedPlanet) {
+            hideModal(); // Ensure any game modal is hidden
+            hidePlanetControlPanel(); // Hide if already open for another planet
+            showPlanetControlPanel(clickedPlanet);
+        } else {
+            // If right-clicked empty space, hide the panel if it's open
+            if (planetControlPanel.classList.contains('active')) {
+                hidePlanetControlPanel();
             }
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return;
-        
-        if (isDragging) {
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
+
+        currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
+        currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
+
+        if (isDrawingInvasionLine) {
+            e.preventDefault();
+        } else if (isDragging) {
+            e.preventDefault();
             const deltaX = e.clientX - lastMouseX;
             const deltaY = e.clientY - lastMouseY;
 
@@ -872,18 +923,25 @@ document.addEventListener('DOMContentLoaded', () => {
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         }
+        // Update cursor based on whether dragging or line drawing is active
+        if (!isDragging && !isDrawingInvasionLine && canvas.style.cursor !== 'default') {
+            canvas.style.cursor = 'default';
+        } else if (isDrawingInvasionLine && canvas.style.cursor !== 'crosshair') {
+            canvas.style.cursor = 'crosshair';
+        }
     });
 
     canvas.addEventListener('mouseup', (e) => {
-        if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
+        // isDrawingInvasionLine is reset by mousedown logic itself
     });
 
     canvas.addEventListener('mouseleave', () => {
-        if (!gameActive) return;
-        if (gameModalBackdrop.classList.contains('active')) return;
+        if (!gameActive || gameModalBackdrop.classList.contains('active') || planetControlPanel.classList.contains('active')) return;
         isDragging = false;
+        // Optionally, reset selectedSourcePlanet and isDrawingInvasionLine if mouse leaves canvas during selection
+        // For now, mousedown handles the reset on re-click or target click/cancel.
     });
 
 
