@@ -90,9 +90,10 @@ export function generatePlanetProduction() {
 }
 
 function handleFleetArrival(fleet) {
-    if (fleet.mission === 'invasion') {
+    // FIX: Corrected mission strings to match what is dispatched in main.js
+    if (fleet.mission === 'invade') {
         resolveCombat(fleet);
-    } else if (fleet.mission === 'reinforcement') {
+    } else if (fleet.mission === 'reinforce') {
         fleet.target.units += fleet.units;
         gameState.messageQueue.push({ 
             type: 'alert', 
@@ -137,9 +138,9 @@ export function getPlanetAtCoordinates(worldX, worldY) {
     for (const planet of gameState.currentPlanets) {
         const planetPos = getPlanetCurrentWorldCoordinates(planet);
         const distance = Math.sqrt(Math.pow(worldX - planetPos.x, 2) + Math.pow(worldY - planetPos.y, 2));
-        const renderedRadius = planet.radius * camera.zoom;
-        const effectiveClickRadiusPixels = Math.max(renderedRadius, CONFIG.MIN_PLANET_CLICKABLE_PIXELS);
-        const effectiveClickRadiusWorld = effectiveClickRadiusPixels / camera.zoom;
+        
+        // Simplified and corrected click radius calculation in world units
+        const effectiveClickRadiusWorld = Math.max(planet.radius, CONFIG.MIN_PLANET_CLICKABLE_PIXELS / camera.zoom);
 
         if (distance < effectiveClickRadiusWorld) return planet;
     }
