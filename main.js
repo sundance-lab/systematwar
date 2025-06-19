@@ -18,19 +18,18 @@ import {
     getModalCallback,
     showPlanetControlPanel,
     hidePlanetControlPanel,
-    processMessageQueue
+    processMessageQueue,
+    uiElements // Import the elements cache
 } from './ui.js';
 
-let uiElements;
 let planetProductionInterval;
 let animationFrameId;
 
-// --- FIX: Variable to hold real-time mouse position ---
 let currentMouseWorldX = 0;
 let currentMouseWorldY = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
-    uiElements = initUI();
+    initUI(); // This now initializes the uiElements object
     initEventListeners();
 });
 
@@ -50,7 +49,6 @@ function initEventListeners() {
         if (cb) cb(value);
     });
     uiElements['modal-input-cancel'].addEventListener('click', () => {
-        // Also cancel any attack line drawing
         inputState.isDrawingInvasionLine = false;
         inputState.selectedSourcePlanet = null;
         hideModal();
@@ -58,12 +56,6 @@ function initEventListeners() {
     
     // Launch Button Listener
     uiElements['launch-all-invasions'].addEventListener('click', launchAllInvasions);
-
-    // FIX: Add event listener for the Planet Control Panel's close button
-    const closeControlPanelButton = uiElements['close-control-panel-x'];
-    if (closeControlPanelButton) {
-        closeControlPanelButton.addEventListener('click', hidePlanetControlPanel);
-    }
 
     // Canvas Listeners
     uiElements['solar-system-canvas'].addEventListener('mousedown', handleMouseDown);
@@ -108,10 +100,8 @@ function animate() {
     
     updateGameWorld();
     
-    // --- FIX: Pass live mouse coordinates to the drawing function ---
     drawGameWorld(currentMouseWorldX, currentMouseWorldY);
 
-    // --- FIX: These functions ensure the UI is always up-to-date ---
     updateUIAfterGameStateChange();
     processMessageQueue();
 }
@@ -131,8 +121,6 @@ function launchAllInvasions() {
     gameState.pendingInvasions.length = 0;
     uiElements['launch-all-invasions'].style.display = 'none';
 }
-
-// --- Input Event Handlers ---
 
 function handleMouseDown(e) {
     if (!gameState.gameActive || e.button !== 0) return;
@@ -180,13 +168,17 @@ function handleRightClick(e) {
     const worldX = camera.x + (e.clientX - uiElements['solar-system-canvas'].width / 2) / camera.zoom;
     const worldY = camera.y + (e.clientY - uiElements['solar-system-canvas'].height / 2) / camera.zoom;
     const clickedPlanet = getPlanetAtCoordinates(worldX, worldY);
-    if (clickedPlanet) showPlanetControlPanel(clickedPlanet);
-    else hidePlanetControlPanel();
+    
+    if (clickedPlanet) {
+        // VITAL CHANGE: Pass the mouse event `e` to the show function
+        showPlanetControlPanel(clickedPlanet, e);
+    } else {
+        hidePlanetControlPanel();
+    }
 }
 
 function handleMouseMove(e) {
     const canvas = uiElements['solar-system-canvas'];
-    // Update real-time world coordinates for the drawing function
     currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
     currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
 
