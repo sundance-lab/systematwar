@@ -1,6 +1,6 @@
-// ui.js
+// ui.js (Corrected)
 import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
-import { camera, gameState } from './state.js';
+import { camera, gameState, inputState } from './state.js';
 import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
 
 let uiElements = {};
@@ -26,7 +26,7 @@ export function initUI() {
     return uiElements;
 }
 
-export function drawGameWorld() {
+export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
     const { ctx, 'solar-system-canvas': canvas } = uiElements;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -41,13 +41,16 @@ export function drawGameWorld() {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // Draw star, planets, orbits, fleets, etc.
-    // This is the drawing part of your original animateSolarSystem function
+    // --- Draw Star ---
     ctx.beginPath();
     ctx.arc(0, 0, gameState.currentStarRadius, 0, Math.PI * 2);
     ctx.fillStyle = 'yellow';
+    ctx.shadowColor = 'orange';
+    ctx.shadowBlur = 15;
     ctx.fill();
+    ctx.shadowBlur = 0;
 
+    // --- Draw Planets and Orbits ---
     gameState.currentPlanets.forEach(planet => {
         const pos = getPlanetCurrentWorldCoordinates(planet);
         ctx.beginPath();
@@ -68,6 +71,7 @@ export function drawGameWorld() {
         ctx.stroke();
     });
 
+    // --- Draw Fleets ---
     gameState.activeFleets.forEach(fleet => {
         const sourcePos = getPlanetCurrentWorldCoordinates(fleet.source);
         const targetPos = getPlanetCurrentWorldCoordinates(fleet.target);
@@ -78,6 +82,19 @@ export function drawGameWorld() {
         ctx.fillStyle = OWNER_COLORS[fleet.source.owner];
         ctx.fill();
     });
+    
+    // --- FIX: Draw pending invasion line to cursor ---
+    if (inputState.isDrawingInvasionLine && inputState.selectedSourcePlanet) {
+        const sourcePos = getPlanetCurrentWorldCoordinates(inputState.selectedSourcePlanet);
+        ctx.beginPath();
+        ctx.moveTo(sourcePos.x, sourcePos.y);
+        ctx.lineTo(currentMouseWorldX, currentMouseWorldY);
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.setLineDash([10 / camera.zoom, 5 / camera.zoom]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
 
     ctx.restore();
 }
@@ -88,8 +105,20 @@ export function populatePlanetList() {
         const listItem = document.createElement('li');
         listItem.textContent = `${planet.name} (${planet.units})`;
         listItem.style.color = OWNER_COLORS[planet.owner];
+        
+        // --- FIX: Logic to handle active class and camera targeting ---
         listItem.addEventListener('click', () => {
-            camera.targetPlanet = planet;
+            if (camera.activeListItem) {
+                camera.activeListItem.classList.remove('active');
+            }
+            if (camera.targetPlanet === planet) {
+                camera.targetPlanet = null; // Deselect
+                camera.activeListItem = null;
+            } else {
+                camera.targetPlanet = planet; // Select
+                camera.activeListItem = listItem;
+                listItem.classList.add('active');
+            }
         });
         planet.listItemRef = listItem;
         uiElements['planet-list'].appendChild(listItem);
