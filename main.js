@@ -1,4 +1,4 @@
-// main.js
+// main.js (Corrected)
 import CONFIG from './config.js';
 import { camera, gameState, inputState } from './state.js';
 import { 
@@ -25,6 +25,10 @@ let uiElements;
 let planetProductionInterval;
 let animationFrameId;
 
+// --- FIX: Variable to hold real-time mouse position ---
+let currentMouseWorldX = 0;
+let currentMouseWorldY = 0;
+
 document.addEventListener('DOMContentLoaded', () => {
     uiElements = initUI();
     initEventListeners();
@@ -45,7 +49,12 @@ function initEventListeners() {
         hideModal();
         if (cb) cb(value);
     });
-    uiElements['modal-input-cancel'].addEventListener('click', hideModal);
+    uiElements['modal-input-cancel'].addEventListener('click', () => {
+        // Also cancel any attack line drawing
+        inputState.isDrawingInvasionLine = false;
+        inputState.selectedSourcePlanet = null;
+        hideModal();
+    });
     
     // Launch Button Listener
     uiElements['launch-all-invasions'].addEventListener('click', launchAllInvasions);
@@ -62,8 +71,12 @@ function initEventListeners() {
 function startGame() {
     uiElements['title-screen'].classList.remove('active');
     uiElements['game-screen'].classList.add('active');
+    
+    const canvas = uiElements['solar-system-canvas'];
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-    initGameWorld(uiElements['solar-system-canvas']);
+    initGameWorld(canvas);
     
     populatePlanetList();
     updateUIAfterGameStateChange();
@@ -79,21 +92,22 @@ function startGame() {
     if (planetProductionInterval) clearInterval(planetProductionInterval);
     planetProductionInterval = setInterval(() => {
         generatePlanetProduction();
-        updateUIAfterGameStateChange();
     }, CONFIG.PLANET_PRODUCTION_INTERVAL_MS);
 }
 
 function animate() {
-    if (!gameState.gameActive) {
-        animationFrameId = requestAnimationFrame(animate);
-        return;
-    }
+    animationFrameId = requestAnimationFrame(animate);
+    
+    if (!gameState.gameActive) return;
     
     updateGameWorld();
-    drawGameWorld();
-    processMessageQueue(); // Check for and show modals
     
-    animationFrameId = requestAnimationFrame(animate);
+    // --- FIX: Pass live mouse coordinates to the drawing function ---
+    drawGameWorld(currentMouseWorldX, currentMouseWorldY);
+
+    // --- FIX: These functions ensure the UI is always up-to-date ---
+    updateUIAfterGameStateChange();
+    processMessageQueue();
 }
 
 function launchAllInvasions() {
@@ -110,7 +124,6 @@ function launchAllInvasions() {
 
     gameState.pendingInvasions.length = 0;
     uiElements['launch-all-invasions'].style.display = 'none';
-    updateUIAfterGameStateChange();
 }
 
 // --- Input Event Handlers ---
@@ -127,9 +140,11 @@ function handleMouseDown(e) {
             handleTargetPlanetSelection(clickedPlanet);
         }
         inputState.selectedSourcePlanet = null;
+        inputState.isDrawingInvasionLine = false;
     } else {
         if (clickedPlanet && clickedPlanet.owner === 'player') {
             inputState.selectedSourcePlanet = clickedPlanet;
+            inputState.isDrawingInvasionLine = true;
         } else if (!clickedPlanet) {
             inputState.isDragging = true;
             inputState.lastMouseX = e.clientX;
@@ -164,6 +179,11 @@ function handleRightClick(e) {
 }
 
 function handleMouseMove(e) {
+    const canvas = uiElements['solar-system-canvas'];
+    // Update real-time world coordinates for the drawing function
+    currentMouseWorldX = camera.x + (e.clientX - canvas.width / 2) / camera.zoom;
+    currentMouseWorldY = camera.y + (e.clientY - canvas.height / 2) / camera.zoom;
+
     if (inputState.isDragging) {
         const dx = e.clientX - inputState.lastMouseX;
         const dy = e.clientY - inputState.lastMouseY;
@@ -180,11 +200,13 @@ function handleMouseUp() {
 
 function handleMouseLeave() {
     inputState.isDragging = false;
+    inputState.isDrawingInvasionLine = false;
     inputState.selectedSourcePlanet = null;
 }
 
 function handleWheel(e) {
     e.preventDefault();
+    if (!gameState.gameActive) return;
     const rect = uiElements['solar-system-canvas'].getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
