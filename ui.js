@@ -1,4 +1,3 @@
-// ui.js (Corrected)
 import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
 import { camera, gameState, inputState } from './state.js';
 import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
@@ -15,10 +14,15 @@ export function initUI() {
         'modal-input-cancel', 'planet-control-panel', 'control-panel-planet-name', 
         'close-control-panel-x', 'launch-all-invasions', 'panel-units', 
         'panel-unit-production-rate', 'panel-income-rate', 'panel-size', 
-        'panel-building-slots-count', 'panel-building-slots', 'building-options-subpanel', 
-        'building-options-buttons'
+        'panel-building-slots-count', 
+        'panel-building-slots', 
+        'building-options-subpanel', 'building-options-buttons'
     ];
-    ids.forEach(id => uiElements[id] = document.getElementById(id));
+    ids.forEach(id => {
+        if(document.getElementById(id)) {
+            uiElements[id] = document.getElementById(id);
+        }
+    });
     uiElements.ctx = uiElements['solar-system-canvas'].getContext('2d');
     uiElements.closeBuildingOptionsXButton = uiElements['building-options-subpanel'].querySelector('.close-button-x');
     uiElements.buildingOptionsPlanetName = uiElements['building-options-subpanel'].querySelector('h3');
@@ -71,7 +75,6 @@ export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
         ctx.stroke();
     });
 
-    // --- Draw Fleets ---
     gameState.activeFleets.forEach(fleet => {
         const sourcePos = getPlanetCurrentWorldCoordinates(fleet.source);
         const targetPos = getPlanetCurrentWorldCoordinates(fleet.target);
@@ -83,7 +86,6 @@ export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
         ctx.fill();
     });
     
-    // --- FIX: Draw pending invasion line to cursor ---
     if (inputState.isDrawingInvasionLine && inputState.selectedSourcePlanet) {
         const sourcePos = getPlanetCurrentWorldCoordinates(inputState.selectedSourcePlanet);
         ctx.beginPath();
@@ -106,7 +108,6 @@ export function populatePlanetList() {
         listItem.textContent = `${planet.name} (${planet.units})`;
         listItem.style.color = OWNER_COLORS[planet.owner];
         
-        // --- FIX: Logic to handle active class and camera targeting ---
         listItem.addEventListener('click', () => {
             if (camera.activeListItem) {
                 camera.activeListItem.classList.remove('active');
@@ -126,14 +127,12 @@ export function populatePlanetList() {
 }
 
 export function updateUIAfterGameStateChange() {
-    // Update planet list for unit/owner changes
     gameState.currentPlanets.forEach(planet => {
         if(planet.listItemRef) {
             planet.listItemRef.textContent = `${planet.name} (${planet.units})`;
             planet.listItemRef.style.color = OWNER_COLORS[planet.owner];
         }
     });
-    // Update player unit/income displays
     if(uiElements['player-unit-count'] && gameState.chosenStarterPlanet) {
         uiElements['player-unit-count'].textContent = gameState.chosenStarterPlanet.units;
     }
@@ -165,15 +164,17 @@ export function getModalCallback() {
 export function showPlanetControlPanel(planet) {
     if (!planet) return;
     const { 
-        'control-panel-planet-name': name, 'panel-units': units, 
-        'panel-building-slots-container': slotsContainer,
+        'control-panel-planet-name': name, 
+        'panel-units': units, 
+        'panel-building-slots': slotsContainer, 
         'planet-control-panel': panel
     } = uiElements;
 
     name.textContent = planet.name;
     units.textContent = planet.units;
     
-    slotsContainer.innerHTML = '';
+    slotsContainer.innerHTML = ''; 
+    
     const numSlots = getBuildingSlots(planet.radius);
     for(let i = 0; i < numSlots; i++) {
         const slotDiv = document.createElement('div');
@@ -186,7 +187,9 @@ export function showPlanetControlPanel(planet) {
 }
 
 export function hidePlanetControlPanel() {
-    uiElements['planet-control-panel'].classList.remove('active');
+    if(uiElements['planet-control-panel']) {
+        uiElements['planet-control-panel'].classList.remove('active');
+    }
 }
 
 export function processMessageQueue() {
