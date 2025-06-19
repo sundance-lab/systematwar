@@ -1,232 +1,170 @@
 // ui.js
-import { CONFIG } from './config.js';
-import { 
-    camera, 
-    currentPlanets, 
-    chosenStarterPlanet,
-    playerIncome,
-    getPlanetCurrentWorldCoordinates, 
-    setCameraTargetPlanet, 
-    setCameraActiveListItem,
-    getBuildingSlots,
-    setPlayerIncome
-} from './game.js';
+import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
+import { camera, gameState } from './state.js';
+import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
 
-// --- UI Element References ---
-export let titleScreen, gameScreen, playButton, canvas, ctx, starterPlanetPanel, 
-           planetListPanel, planetList, playerUnitsPanel, playerUnitCountDisplay, 
-           playerIncomeCountDisplay, gameModalBackdrop, gameModal, modalMessage, 
-           modalInputArea, modalInput, modalInputConfirm, modalConfirm, 
-           modalInputCancelButton, planetControlPanel, controlPanelName, 
-           closeControlPanelXButton, launchAllInvasionsButton, panelUnitsDisplay, 
-           panelUnitProductionRateDisplay, panelIncomeRateDisplay, panelSizeDisplay, 
-           panelBuildingSlotsCount, panelBuildingSlotsContainer, buildingOptionsSubpanel, 
-           closeBuildingOptionsXButton, buildingOptionsPlanetName, 
-           buildingOptionsButtonsContainer;
+let uiElements = {};
+let modalCallback = null;
 
-// --- Modal and Panel State ---
-export let modalCallback = null;
-export function setModalCallback(cb) { modalCallback = cb; }
-
-// --- UI Initialization ---
 export function initUI() {
-    titleScreen = document.getElementById('title-screen');
-    gameScreen = document.getElementById('game-screen');
-    playButton = document.getElementById('play-button');
-    canvas = document.getElementById('solar-system-canvas');
-    ctx = canvas.getContext('2d');
-    starterPlanetPanel = document.getElementById('starter-planet-panel');
-    planetListPanel = document.getElementById('planet-list-panel');
-    planetList = document.getElementById('planet-list');
-    playerUnitsPanel = document.getElementById('player-units-panel');
-    playerUnitCountDisplay = document.getElementById('player-unit-count');
-    playerIncomeCountDisplay = document.getElementById('player-income-count');
-    gameModalBackdrop = document.getElementById('game-modal-backdrop');
-    gameModal = document.getElementById('game-modal');
-    modalMessage = document.getElementById('modal-message');
-    modalInputArea = document.getElementById('modal-input-area');
-    modalInput = document.getElementById('modal-input');
-    modalInputConfirm = document.getElementById('modal-input-confirm');
-    modalConfirm = document.getElementById('modal-confirm');
-    modalInputCancelButton = document.getElementById('modal-input-cancel');
-    planetControlPanel = document.getElementById('planet-control-panel');
-    controlPanelName = document.getElementById('control-panel-planet-name');
-    closeControlPanelXButton = document.getElementById('close-control-panel-x');
-    launchAllInvasionsButton = document.getElementById('launch-all-invasions');
-    panelUnitsDisplay = document.getElementById('panel-units');
-    panelUnitProductionRateDisplay = document.getElementById('panel-unit-production-rate');
-    panelIncomeRateDisplay = document.getElementById('panel-income-rate');
-    panelSizeDisplay = document.getElementById('panel-size');
-    panelBuildingSlotsCount = document.getElementById('panel-building-slots-count');
-    panelBuildingSlotsContainer = document.getElementById('panel-building-slots');
-    buildingOptionsSubpanel = document.getElementById('building-options-subpanel');
-    closeBuildingOptionsXButton = buildingOptionsSubpanel.querySelector('.close-button-x');
-    buildingOptionsPlanetName = buildingOptionsSubpanel.querySelector('h3');
-    buildingOptionsButtonsContainer = document.getElementById('building-options-buttons');
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    canvas.style.cursor = 'default';
+    const ids = [
+        'title-screen', 'game-screen', 'play-button', 'solar-system-canvas', 
+        'planet-list-panel', 'planet-list', 'player-units-panel', 'player-unit-count', 
+        'player-income-count', 'game-modal-backdrop', 'game-modal', 'modal-message', 
+        'modal-input-area', 'modal-input', 'modal-input-confirm', 'modal-confirm', 
+        'modal-input-cancel', 'planet-control-panel', 'control-panel-planet-name', 
+        'close-control-panel-x', 'launch-all-invasions', 'panel-units', 
+        'panel-unit-production-rate', 'panel-income-rate', 'panel-size', 
+        'panel-building-slots-count', 'panel-building-slots', 'building-options-subpanel', 
+        'building-options-buttons'
+    ];
+    ids.forEach(id => uiElements[id] = document.getElementById(id));
+    uiElements.ctx = uiElements['solar-system-canvas'].getContext('2d');
+    uiElements.closeBuildingOptionsXButton = uiElements['building-options-subpanel'].querySelector('.close-button-x');
+    uiElements.buildingOptionsPlanetName = uiElements['building-options-subpanel'].querySelector('h3');
+    
+    return uiElements;
 }
 
+export function drawGameWorld() {
+    const { ctx, 'solar-system-canvas': canvas } = uiElements;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
 
-// --- UI Functions ---
+    if (camera.targetPlanet) {
+        const targetPos = getPlanetCurrentWorldCoordinates(camera.targetPlanet);
+        camera.x = targetPos.x;
+        camera.y = targetPos.y;
+    }
+
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
+
+    // Draw star, planets, orbits, fleets, etc.
+    // This is the drawing part of your original animateSolarSystem function
+    ctx.beginPath();
+    ctx.arc(0, 0, gameState.currentStarRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'yellow';
+    ctx.fill();
+
+    gameState.currentPlanets.forEach(planet => {
+        const pos = getPlanetCurrentWorldCoordinates(planet);
+        ctx.beginPath();
+        ctx.arc(0, 0, planet.orbitRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${CONFIG.ORBIT_LINE_ALPHA})`;
+        ctx.lineWidth = CONFIG.ORBIT_LINE_WIDTH / camera.zoom;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, planet.radius, 0, Math.PI * 2);
+        ctx.fillStyle = planet.color;
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, planet.radius + 2 / camera.zoom, 0, Math.PI*2);
+        ctx.strokeStyle = OWNER_COLORS[planet.owner];
+        ctx.lineWidth = 4 / camera.zoom;
+        ctx.stroke();
+    });
+
+    gameState.activeFleets.forEach(fleet => {
+        const sourcePos = getPlanetCurrentWorldCoordinates(fleet.source);
+        const targetPos = getPlanetCurrentWorldCoordinates(fleet.target);
+        const x = sourcePos.x + (targetPos.x - sourcePos.x) * fleet.progress;
+        const y = sourcePos.y + (targetPos.y - sourcePos.y) * fleet.progress;
+        ctx.beginPath();
+        ctx.arc(x, y, CONFIG.FLEET_BASE_RADIUS / camera.zoom, 0, Math.PI*2);
+        ctx.fillStyle = OWNER_COLORS[fleet.source.owner];
+        ctx.fill();
+    });
+
+    ctx.restore();
+}
+
 export function populatePlanetList() {
-    planetList.innerHTML = '';
-    currentPlanets.forEach((planet, index) => {
+    uiElements['planet-list'].innerHTML = '';
+    gameState.currentPlanets.forEach(planet => {
         const listItem = document.createElement('li');
-        const ownerIndicator = document.createElement('span');
-        ownerIndicator.classList.add('owner-indicator', `owner-${planet.owner}`);
-        const planetNameText = document.createTextNode(`${planet.name} (${planet.units})`);
-        listItem.appendChild(ownerIndicator);
-        listItem.appendChild(planetNameText);
-        listItem.dataset.planetIndex = index;
-        planet.listItemRef = listItem;
-
+        listItem.textContent = `${planet.name} (${planet.units})`;
+        listItem.style.color = OWNER_COLORS[planet.owner];
         listItem.addEventListener('click', () => {
-            if (camera.activeListItem) camera.activeListItem.classList.remove('active');
-            if (planet === camera.targetPlanet) {
-                setCameraTargetPlanet(null);
-                setCameraActiveListItem(null);
-            } else {
-                listItem.classList.add('active');
-                setCameraActiveListItem(listItem);
-                setCameraTargetPlanet(planet);
-                const targetPos = getPlanetCurrentWorldCoordinates(planet);
-                camera.x = targetPos.x;
-                camera.y = targetPos.y;
-            }
+            camera.targetPlanet = planet;
         });
-        planetList.appendChild(listItem);
+        planet.listItemRef = listItem;
+        uiElements['planet-list'].appendChild(listItem);
     });
 }
 
-export function updatePlanetListItem(planet) {
-    if (!planet.listItemRef) return;
-    const ownerIndicator = planet.listItemRef.querySelector('.owner-indicator');
-    const planetNameTextNode = planet.listItemRef.lastChild;
-    ownerIndicator.className = 'owner-indicator';
-    ownerIndicator.classList.add(`owner-${planet.owner}`);
-    planetNameTextNode.textContent = `${planet.name} (${planet.units})`;
-}
-
-export function updatePlayerUnitDisplay() {
-    if (playerUnitCountDisplay) {
-        playerUnitCountDisplay.textContent = chosenStarterPlanet ? chosenStarterPlanet.units : 0;
+export function updateUIAfterGameStateChange() {
+    // Update planet list for unit/owner changes
+    gameState.currentPlanets.forEach(planet => {
+        if(planet.listItemRef) {
+            planet.listItemRef.textContent = `${planet.name} (${planet.units})`;
+            planet.listItemRef.style.color = OWNER_COLORS[planet.owner];
+        }
+    });
+    // Update player unit/income displays
+    if(uiElements['player-unit-count'] && gameState.chosenStarterPlanet) {
+        uiElements['player-unit-count'].textContent = gameState.chosenStarterPlanet.units;
+    }
+    if(uiElements['player-income-count']) {
+        uiElements['player-income-count'].textContent = gameState.playerIncome;
     }
 }
 
-export function updatePlayerIncomeDisplay() {
-    if (playerIncomeCountDisplay) {
-        playerIncomeCountDisplay.textContent = playerIncome;
-    }
-}
-
-export function showModal(message, type, callback = null) {
-    modalMessage.textContent = message;
+export function showModal(message, type, callback) {
+    gameState.gameActive = false;
     modalCallback = callback;
-
-    modalInputArea.style.display = type === 'prompt' ? 'flex' : 'none';
-    modalConfirm.style.display = type === 'prompt' ? 'none' : 'block';
-    
-    if (type === 'prompt') {
-        modalInput.value = '';
-        modalInput.focus();
-    }
-    
-    gameModalBackdrop.classList.add('active');
+    uiElements['modal-message'].textContent = message;
+    uiElements['modal-input-area'].style.display = type === 'prompt' ? 'flex' : 'none';
+    uiElements['modal-confirm'].style.display = type === 'prompt' ? 'none' : 'block';
+    uiElements['game-modal-backdrop'].classList.add('active');
+    if (type === 'prompt') uiElements['modal-input'].focus();
 }
 
 export function hideModal() {
-    gameModalBackdrop.classList.remove('active');
+    uiElements['game-modal-backdrop'].classList.remove('active');
+    gameState.gameActive = true;
+    modalCallback = null;
 }
 
-export function showBuildingOptionsSubpanel() {
-    buildingOptionsSubpanel.classList.add('active');
-    const panelRect = planetControlPanel.getBoundingClientRect();
-    buildingOptionsSubpanel.style.left = `${panelRect.width}px`;
-    buildingOptionsSubpanel.style.top = `0px`;
-}
-
-export function hideBuildingOptionsSubpanel() {
-    buildingOptionsSubpanel.classList.remove('active');
-}
-
-export function executeBuildingConstruction(buildingType, planet, slotIndex) {
-    const buildingData = CONFIG.BUILDINGS[buildingType];
-    const cost = buildingData.cost;
-
-    if (playerIncome >= cost) {
-        setPlayerIncome(playerIncome - cost);
-        planet.buildings[slotIndex] = buildingType;
-        updatePlayerIncomeDisplay();
-        showPlanetControlPanel(planet);
-    } else {
-        showModal("Not enough income to build that!", 'alert');
-    }
+export function getModalCallback() {
+    return modalCallback;
 }
 
 export function showPlanetControlPanel(planet) {
     if (!planet) return;
-    controlPanelName.textContent = `${planet.name} (${planet.owner})`;
-    panelUnitsDisplay.textContent = planet.units;
+    const { 
+        'control-panel-planet-name': name, 'panel-units': units, 
+        'panel-building-slots-container': slotsContainer,
+        'planet-control-panel': panel
+    } = uiElements;
 
-    let currentUnitProductionRate = CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE;
-    let currentIncomeProductionRate = CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE;
-    planet.buildings.forEach(buildingName => {
-        const building = CONFIG.BUILDINGS[buildingName];
-        if(building){
-            currentUnitProductionRate += building.unitBonus;
-            currentIncomeProductionRate += building.incomeBonus;
-        }
-    });
-
-    panelUnitProductionRateDisplay.textContent = currentUnitProductionRate;
-    panelIncomeRateDisplay.textContent = currentIncomeProductionRate;
-    panelSizeDisplay.textContent = planet.radius;
-
+    name.textContent = planet.name;
+    units.textContent = planet.units;
+    
+    slotsContainer.innerHTML = '';
     const numSlots = getBuildingSlots(planet.radius);
-    panelBuildingSlotsCount.textContent = numSlots;
-    panelBuildingSlotsContainer.innerHTML = '';
-
-    for (let i = 0; i < numSlots; i++) {
+    for(let i = 0; i < numSlots; i++) {
         const slotDiv = document.createElement('div');
         slotDiv.classList.add('building-slot');
-        const buildingInSlot = planet.buildings[i];
-        if (buildingInSlot) {
-            slotDiv.textContent = buildingInSlot;
-            slotDiv.classList.add('occupied');
-        } else {
-            slotDiv.textContent = `Empty Slot ${i + 1}`;
-            if (planet.owner === 'player') {
-                slotDiv.addEventListener('click', () => {
-                    hideBuildingOptionsSubpanel();
-                    buildingOptionsPlanetName.textContent = `Build on ${planet.name} (Slot ${i + 1})`;
-                    buildingOptionsButtonsContainer.innerHTML = '';
-                    for (const buildingKey in CONFIG.BUILDINGS) {
-                        const buildingData = CONFIG.BUILDINGS[buildingKey];
-                        const button = document.createElement('button');
-                        button.textContent = `${buildingData.name} (${buildingData.cost} income)`;
-                        button.addEventListener('click', () => {
-                            executeBuildingConstruction(buildingKey, planet, i);
-                            hideBuildingOptionsSubpanel();
-                        });
-                        buildingOptionsButtonsContainer.appendChild(button);
-                    }
-                    showBuildingOptionsSubpanel();
-                });
-            }
-        }
-        panelBuildingSlotsContainer.appendChild(slotDiv);
+        slotDiv.textContent = planet.buildings[i] || 'Empty Slot';
+        slotsContainer.appendChild(slotDiv);
     }
-    planetControlPanel.style.left = '50%';
-    planetControlPanel.style.top = '50%';
-    planetControlPanel.style.transform = 'translate(-50%, -50%)';
-    planetControlPanel.classList.add('active');
-    hideBuildingOptionsSubpanel();
+    
+    panel.classList.add('active');
 }
 
 export function hidePlanetControlPanel() {
-    planetControlPanel.classList.remove('active');
-    hideBuildingOptionsSubpanel();
+    uiElements['planet-control-panel'].classList.remove('active');
+}
+
+export function processMessageQueue() {
+    if (gameState.messageQueue.length > 0) {
+        const event = gameState.messageQueue.shift();
+        if (event.type === 'alert') {
+            showModal(event.message, 'alert');
+        }
+    }
 }
