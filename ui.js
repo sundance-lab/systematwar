@@ -1,3 +1,4 @@
+// ui.js (Corrected)
 import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
 import { camera, gameState, inputState } from './state.js';
 import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
@@ -7,15 +8,14 @@ let modalCallback = null;
 
 export function initUI() {
     const ids = [
-        'title-screen', 'game-screen', 'play-button', 'solar-system-canvas', 
-        'planet-list-panel', 'planet-list', 'player-units-panel', 'player-unit-count', 
-        'player-income-count', 'game-modal-backdrop', 'game-modal', 'modal-message', 
-        'modal-input-area', 'modal-input', 'modal-input-confirm', 'modal-confirm', 
-        'modal-input-cancel', 'planet-control-panel', 'control-panel-planet-name', 
-        'close-control-panel-x', 'launch-all-invasions', 'panel-units', 
-        'panel-unit-production-rate', 'panel-income-rate', 'panel-size', 
-        'panel-building-slots-count', 
-        'panel-building-slots', 
+        'title-screen', 'game-screen', 'play-button', 'solar-system-canvas',
+        'planet-list-panel', 'planet-list', 'player-units-panel', 'player-unit-count',
+        'player-income-count', 'game-modal-backdrop', 'game-modal', 'modal-message',
+        'modal-input-area', 'modal-input', 'modal-input-confirm', 'modal-confirm',
+        'modal-input-cancel', 'planet-control-panel', 'control-panel-planet-name',
+        'close-control-panel-x', 'launch-all-invasions', 'panel-units',
+        'panel-unit-production-rate', 'panel-income-rate', 'panel-size',
+        'panel-building-slots-count', 'panel-building-slots',
         'building-options-subpanel', 'building-options-buttons'
     ];
     ids.forEach(id => {
@@ -54,27 +54,49 @@ export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // --- Draw Planets and Orbits ---
     gameState.currentPlanets.forEach(planet => {
         const pos = getPlanetCurrentWorldCoordinates(planet);
+        // Draw Orbit
         ctx.beginPath();
         ctx.arc(0, 0, planet.orbitRadius, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(255, 255, 255, ${CONFIG.ORBIT_LINE_ALPHA})`;
         ctx.lineWidth = CONFIG.ORBIT_LINE_WIDTH / camera.zoom;
         ctx.stroke();
 
+        // Draw Planet
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, planet.radius, 0, Math.PI * 2);
         ctx.fillStyle = planet.color;
         ctx.fill();
         
+        // Draw Ownership Ring
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, planet.radius + 2 / camera.zoom, 0, Math.PI*2);
         ctx.strokeStyle = OWNER_COLORS[planet.owner];
         ctx.lineWidth = 4 / camera.zoom;
         ctx.stroke();
+
+        // --- FIX: Restored original text rendering logic ---
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+
+        const nameFontSize = Math.max(10, 18 / camera.zoom);
+        const nameOffset = planet.radius + Math.max(20, 25 / camera.zoom);
+        ctx.font = `${nameFontSize}px 'Space Mono', monospace`;
+        ctx.fillStyle = OWNER_COLORS[planet.owner];
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(planet.name, 0, -nameOffset);
+
+        const unitsFontSize = Math.max(8, 12 / camera.zoom);
+        const unitsOffset = nameOffset + Math.max(15, 20 / camera.zoom);
+        ctx.font = `${unitsFontSize}px 'Space Mono', monospace`;
+        ctx.fillText(`${planet.units}`, 0, -unitsOffset);
+        
+        ctx.restore();
     });
 
+    // Draw Fleets
     gameState.activeFleets.forEach(fleet => {
         const sourcePos = getPlanetCurrentWorldCoordinates(fleet.source);
         const targetPos = getPlanetCurrentWorldCoordinates(fleet.target);
@@ -86,6 +108,7 @@ export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
         ctx.fill();
     });
     
+    // Draw pending invasion line to cursor
     if (inputState.isDrawingInvasionLine && inputState.selectedSourcePlanet) {
         const sourcePos = getPlanetCurrentWorldCoordinates(inputState.selectedSourcePlanet);
         ctx.beginPath();
@@ -105,18 +128,22 @@ export function populatePlanetList() {
     uiElements['planet-list'].innerHTML = '';
     gameState.currentPlanets.forEach(planet => {
         const listItem = document.createElement('li');
-        listItem.textContent = `${planet.name} (${planet.units})`;
-        listItem.style.color = OWNER_COLORS[planet.owner];
+        const ownerIndicator = document.createElement('span');
+        ownerIndicator.className = `owner-indicator owner-${planet.owner}`;
+        listItem.appendChild(ownerIndicator);
         
+        const text = document.createTextNode(`${planet.name} (${planet.units})`);
+        listItem.appendChild(text);
+
         listItem.addEventListener('click', () => {
             if (camera.activeListItem) {
                 camera.activeListItem.classList.remove('active');
             }
             if (camera.targetPlanet === planet) {
-                camera.targetPlanet = null; // Deselect
+                camera.targetPlanet = null;
                 camera.activeListItem = null;
             } else {
-                camera.targetPlanet = planet; // Select
+                camera.targetPlanet = planet;
                 camera.activeListItem = listItem;
                 listItem.classList.add('active');
             }
@@ -129,8 +156,8 @@ export function populatePlanetList() {
 export function updateUIAfterGameStateChange() {
     gameState.currentPlanets.forEach(planet => {
         if(planet.listItemRef) {
-            planet.listItemRef.textContent = `${planet.name} (${planet.units})`;
-            planet.listItemRef.style.color = OWNER_COLORS[planet.owner];
+            planet.listItemRef.querySelector('span + *').textContent = ` ${planet.name} (${planet.units})`;
+            planet.listItemRef.querySelector('.owner-indicator').className = `owner-indicator owner-${planet.owner}`;
         }
     });
     if(uiElements['player-unit-count'] && gameState.chosenStarterPlanet) {
@@ -161,25 +188,94 @@ export function getModalCallback() {
     return modalCallback;
 }
 
-export function showPlanetControlPanel(planet) {
-    if (!planet) return;
+export function executeBuildingConstruction(buildingType, planet, slotIndex) {
+    const buildingData = BUILDINGS[buildingType];
+    const cost = buildingData.cost;
+    if (gameState.playerIncome >= cost) {
+        gameState.playerIncome -= cost;
+        planet.buildings[slotIndex] = buildingType;
+        showPlanetControlPanel(planet); // Refresh panel
+    } else {
+        showModal("Not enough income to build that!", 'alert');
+    }
+}
+
+export function hideBuildingOptionsSubpanel() {
+    uiElements['building-options-subpanel'].classList.remove('active');
+}
+
+export function showBuildingOptionsSubpanel(planet, slotIndex) {
     const { 
-        'control-panel-planet-name': name, 
-        'panel-units': units, 
-        'panel-building-slots': slotsContainer, 
-        'planet-control-panel': panel
+        'building-options-subpanel': subpanel,
+        'building-options-planet-name': name,
+        'building-options-buttons': buttons
     } = uiElements;
 
-    name.textContent = planet.name;
+    name.textContent = `Build on ${planet.name}`;
+    buttons.innerHTML = '';
+    
+    for (const buildingKey in BUILDINGS) {
+        const buildingData = BUILDINGS[buildingKey];
+        const button = document.createElement('button');
+        button.textContent = `${buildingData.name} (${buildingData.cost} income)`;
+        button.addEventListener('click', () => {
+            executeBuildingConstruction(buildingKey, planet, slotIndex);
+            hideBuildingOptionsSubpanel();
+        });
+        buttons.appendChild(button);
+    }
+
+    subpanel.classList.add('active');
+}
+
+export function showPlanetControlPanel(planet) {
+    if (!planet) return;
+    hideBuildingOptionsSubpanel(); 
+
+    const { 
+        'control-panel-planet-name': name, 'panel-units': units, 
+        'panel-unit-production-rate': unitProd, 'panel-income-rate': incomeProd,
+        'panel-size': size, 'panel-building-slots-count': slotsCount,
+        'panel-building-slots': slotsContainer, 'planet-control-panel': panel
+    } = uiElements;
+
+    name.textContent = `${planet.name} (${planet.owner})`;
     units.textContent = planet.units;
+    size.textContent = planet.radius;
     
-    slotsContainer.innerHTML = ''; 
-    
+    let currentUnitProduction = CONFIG.PLANET_BASE_UNIT_PRODUCTION_RATE;
+    let currentIncomeProduction = CONFIG.PLANET_BASE_INCOME_PRODUCTION_RATE;
+    planet.buildings.forEach(buildingName => {
+        const building = BUILDINGS[buildingName];
+        if (building) {
+            currentUnitProduction += building.unitBonus;
+            currentIncomeProduction += building.incomeBonus;
+        }
+    });
+    unitProd.textContent = currentUnitProduction;
+    incomeProd.textContent = currentIncomeProduction;
+
     const numSlots = getBuildingSlots(planet.radius);
+    slotsCount.textContent = numSlots;
+    slotsContainer.innerHTML = ''; 
+
     for(let i = 0; i < numSlots; i++) {
         const slotDiv = document.createElement('div');
         slotDiv.classList.add('building-slot');
-        slotDiv.textContent = planet.buildings[i] || 'Empty Slot';
+        const buildingInSlot = planet.buildings[i];
+        
+        if (buildingInSlot) {
+            slotDiv.textContent = buildingInSlot;
+            slotDiv.classList.add('occupied');
+        } else {
+            slotDiv.textContent = `Empty Slot ${i + 1}`;
+            if (planet.owner === 'player') {
+                slotDiv.style.cursor = 'pointer';
+                slotDiv.addEventListener('click', () => {
+                    showBuildingOptionsSubpanel(planet, i);
+                });
+            }
+        }
         slotsContainer.appendChild(slotDiv);
     }
     
@@ -189,6 +285,7 @@ export function showPlanetControlPanel(planet) {
 export function hidePlanetControlPanel() {
     if(uiElements['planet-control-panel']) {
         uiElements['planet-control-panel'].classList.remove('active');
+        hideBuildingOptionsSubpanel();
     }
 }
 
