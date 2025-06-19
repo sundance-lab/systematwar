@@ -1,4 +1,4 @@
-// ui.js (Corrected)
+// ui.js (Corrected for DOM query error)
 import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
 import { camera, gameState, inputState } from './state.js';
 import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
@@ -76,7 +76,7 @@ export function drawGameWorld(currentMouseWorldX, currentMouseWorldY) {
         ctx.lineWidth = 4 / camera.zoom;
         ctx.stroke();
 
-        // --- FIX: Restored original text rendering logic ---
+        // --- Restored original text rendering logic ---
         ctx.save();
         ctx.translate(pos.x, pos.y);
 
@@ -128,12 +128,16 @@ export function populatePlanetList() {
     uiElements['planet-list'].innerHTML = '';
     gameState.currentPlanets.forEach(planet => {
         const listItem = document.createElement('li');
+        
         const ownerIndicator = document.createElement('span');
         ownerIndicator.className = `owner-indicator owner-${planet.owner}`;
         listItem.appendChild(ownerIndicator);
         
-        const text = document.createTextNode(`${planet.name} (${planet.units})`);
-        listItem.appendChild(text);
+        // --- FIX: Wrap the planet name and units in their own span ---
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'planet-name-text'; // Add a class for easy selection
+        nameSpan.textContent = ` ${planet.name} (${planet.units})`;
+        listItem.appendChild(nameSpan);
 
         listItem.addEventListener('click', () => {
             if (camera.activeListItem) {
@@ -156,8 +160,16 @@ export function populatePlanetList() {
 export function updateUIAfterGameStateChange() {
     gameState.currentPlanets.forEach(planet => {
         if(planet.listItemRef) {
-            planet.listItemRef.querySelector('span + *').textContent = ` ${planet.name} (${planet.units})`;
-            planet.listItemRef.querySelector('.owner-indicator').className = `owner-indicator owner-${planet.owner}`;
+            // --- FIX: Use a robust class selector to find the text element ---
+            const nameTextElement = planet.listItemRef.querySelector('.planet-name-text');
+            if (nameTextElement) {
+                nameTextElement.textContent = ` ${planet.name} (${planet.units})`;
+            }
+            // Update the owner indicator color
+            const ownerIndicator = planet.listItemRef.querySelector('.owner-indicator');
+            if (ownerIndicator) {
+                ownerIndicator.className = `owner-indicator owner-${planet.owner}`;
+            }
         }
     });
     if(uiElements['player-unit-count'] && gameState.chosenStarterPlanet) {
@@ -230,7 +242,7 @@ export function showBuildingOptionsSubpanel(planet, slotIndex) {
 
 export function showPlanetControlPanel(planet) {
     if (!planet) return;
-    hideBuildingOptionsSubpanel(); 
+    hideBuildingOptionsSubpanel();
 
     const { 
         'control-panel-planet-name': name, 'panel-units': units, 
