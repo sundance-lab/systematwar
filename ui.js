@@ -305,6 +305,11 @@ export function showPlanetControlPanel(planet) {
         slotsContainer.appendChild(slotDiv);
     }
     
+    // FIX: Set panel position before making it active
+    panel.style.top = '50%';
+    panel.style.left = '50%';
+    panel.style.transform = 'translate(-50%, -50%)';
+
     panel.classList.add('active');
 }
 
