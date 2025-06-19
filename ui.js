@@ -1,4 +1,4 @@
-// ui.js (Corrected for DOM query error)
+// ui.js (Corrected for DOM query error and missing event listener)
 import CONFIG, { BUILDINGS, OWNER_COLORS } from './config.js';
 import { camera, gameState, inputState } from './state.js';
 import { getPlanetCurrentWorldCoordinates, getBuildingSlots } from './game.js';
@@ -19,13 +19,23 @@ export function initUI() {
         'building-options-subpanel', 'building-options-buttons'
     ];
     ids.forEach(id => {
-        if(document.getElementById(id)) {
-            uiElements[id] = document.getElementById(id);
+        const element = document.getElementById(id);
+        if(element) {
+            uiElements[id] = element;
         }
     });
+    
     uiElements.ctx = uiElements['solar-system-canvas'].getContext('2d');
-    uiElements.closeBuildingOptionsXButton = uiElements['building-options-subpanel'].querySelector('.close-button-x');
-    uiElements.buildingOptionsPlanetName = uiElements['building-options-subpanel'].querySelector('h3');
+    
+    // FIX: Safely query for sub-elements and add missing event listener
+    const subpanel = uiElements['building-options-subpanel'];
+    if (subpanel) {
+        uiElements.closeBuildingOptionsXButton = subpanel.querySelector('.close-button-x');
+        uiElements.buildingOptionsPlanetName = subpanel.querySelector('h3');
+        if (uiElements.closeBuildingOptionsXButton) {
+            uiElements.closeBuildingOptionsXButton.addEventListener('click', hideBuildingOptionsSubpanel);
+        }
+    }
     
     return uiElements;
 }
@@ -213,15 +223,19 @@ export function executeBuildingConstruction(buildingType, planet, slotIndex) {
 }
 
 export function hideBuildingOptionsSubpanel() {
-    uiElements['building-options-subpanel'].classList.remove('active');
+    if(uiElements['building-options-subpanel']) {
+        uiElements['building-options-subpanel'].classList.remove('active');
+    }
 }
 
 export function showBuildingOptionsSubpanel(planet, slotIndex) {
     const { 
         'building-options-subpanel': subpanel,
-        'building-options-planet-name': name,
+        'buildingOptionsPlanetName': name, // Using the cached element
         'building-options-buttons': buttons
     } = uiElements;
+
+    if (!subpanel || !name || !buttons) return;
 
     name.textContent = `Build on ${planet.name}`;
     buttons.innerHTML = '';
