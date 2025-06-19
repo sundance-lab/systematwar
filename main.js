@@ -59,6 +59,12 @@ function initEventListeners() {
     // Launch Button Listener
     uiElements['launch-all-invasions'].addEventListener('click', launchAllInvasions);
 
+    // FIX: Add event listener for the Planet Control Panel's close button
+    const closeControlPanelButton = uiElements['close-control-panel-x'];
+    if (closeControlPanelButton) {
+        closeControlPanelButton.addEventListener('click', hidePlanetControlPanel);
+    }
+
     // Canvas Listeners
     uiElements['solar-system-canvas'].addEventListener('mousedown', handleMouseDown);
     uiElements['solar-system-canvas'].addEventListener('contextmenu', handleRightClick);
