@@ -1,6 +1,6 @@
 // config.js
 
-export const CONFIG = {
+const CONFIG = {
     PLANET_NAMES: [
         "Aethel", "Xylos", "Cygnus", "Vorlag", "Zandor",
         "Kryll", "Solara", "Draxia", "Vespera", "Rilax",
@@ -56,7 +56,6 @@ export const CONFIG = {
     AI_PLANET_INITIAL_UNITS: 100,
     NEUTRAL_PLANET_INITIAL_UNITS: 100,
     
-    // Production Rates
     PLANET_BASE_UNIT_PRODUCTION_RATE: 5,
     PLANET_BASE_INCOME_PRODUCTION_RATE: 5,
 
@@ -67,22 +66,14 @@ export const CONFIG = {
     },
 
     INVASION_TRAVEL_SPEED_WORLD_UNITS_PER_SECOND: 500,
-    COMBAT_LOSS_RATE_PER_UNIT_PER_MS: 0.0001,
-    COMBAT_ROUND_DURATION_MS: 100,
     COMBAT_ATTACKER_BONUS_PERCENT: 0,
     COMBAT_DEFENDER_BONUS_PERCENT: 0.1,
-    MIN_UNITS_for_AI_PLANET: 50,
 
-    // Fleet ball size configuration
     FLEET_BASE_RADIUS: 5,
     FLEET_MAX_SCREEN_RADIUS_PX: 15,
 
-    // Planet click radius multiplier
-    PLANET_CLICK_RADIUS_MULTIPLIER: 1.5,
     MIN_PLANET_CLICKABLE_PIXELS: 25,
 
-
-    // Building Costs and Effects
     BUILDINGS: {
         Garrison: {
             name: "Garrison",
@@ -107,3 +98,6 @@ export const CONFIG = {
         }
     }
 };
+
+export const { BUILDINGS, OWNER_COLORS } = CONFIG;
+export default CONFIG;
