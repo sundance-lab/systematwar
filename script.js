@@ -719,7 +719,12 @@ function resolveCombat(fleet) {
         remainingDefenderUnits = 0;
         winner = 'attacker';
     } else {
-        remainingDefenderUnits = Math.round(effectiveDefenderUnits - effectiveAttackerUnits);
+        // *** FIX START ***
+        // The defender wins. Calculate losses based on the attacker's strength, reduced by the defender's bonus.
+        const defenderTotalBonus = 1 + CONFIG.COMBAT_DEFENDER_BONUS_PERCENT + defenderBonus;
+        const defenderLosses = Math.round(effectiveAttackerUnits / defenderTotalBonus);
+        remainingDefenderUnits = defenderUnitsRaw - defenderLosses;
+        // *** FIX END ***
         remainingAttackerUnits = 0;
         winner = 'defender';
     }
@@ -794,12 +799,19 @@ function executeBuildingConstruction(buildingType, planet, slotIndex) {
         playerIncome -= cost;
         planet.buildings[slotIndex] = buildingType;
 
+        // *** FIX START ***
+        // This code is redundant because production is recalculated from the buildings array
+        // each cycle. It can be safely removed.
+        /*
         if (buildingData.unitBonus) {
             planet.unitProductionRate += buildingData.unitBonus;
         }
         if (buildingData.incomeBonus) {
-            planet.incomeProductionRate += buildingData.incomeRate; // Fixed: should be incomeBonus
+            // This was the original bug: used .incomeRate instead of .incomeBonus
+            planet.incomeProductionRate += buildingData.incomeBonus;
         }
+        */
+        // *** FIX END ***
 
         updatePlayerIncomeDisplay();
         showPlanetControlPanel(planet);
@@ -825,6 +837,7 @@ function showPlanetControlPanel(planet) {
         if (buildingName === 'Garrison') {
             currentUnitProductionRate += CONFIG.BUILDINGS.Garrison.unitBonus;
         } else if (buildingName === 'MarketDistrict') {
+            // *** FIX: This is where the income bonus is correctly calculated for display ***
             currentIncomeProductionRate += CONFIG.BUILDINGS.MarketDistrict.incomeBonus;
         }
     });
@@ -1005,7 +1018,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 travelDuration: calculateTravelDuration(pending.source, pending.target),
                 currentX: sourcePlanetWorldX,
                 currentY: sourcePlanetWorldY,
-                mission: pending.mission
+                mission: pending.mission,
+                color: CONFIG.OWNER_COLORS[pending.source.owner]
             });
         });
 
